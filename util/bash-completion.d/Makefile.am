@@ -58,7 +58,6 @@ CLEANFILES = $(bash_completion_script) \
 	$(grub_sparc64_setup_script) \
 	config.log
 
-bashcompletiondir = $(datarootdir)/bash-completion/completions
 bashcompletion_DATA = $(bash_completion_script) \
 	$(grub_bios_setup_script) \
 	$(grub_editenv_script) \

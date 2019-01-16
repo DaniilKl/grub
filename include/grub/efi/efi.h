@@ -25,6 +25,11 @@
 #include <grub/efi/api.h>
 #include <grub/efi/pe32.h>
 
+#define GRUB_EFI_GRUB_VARIABLE_GUID \
+  { 0x91376aff, 0xcba6, 0x42be, \
+    { 0x94, 0x9d, 0x06, 0xfd, 0xe8, 0x11, 0x28, 0xe8 } \
+  }
+
 #define GRUB_LINUX_ARM_MAGIC_SIGNATURE 0x016f2818
 
 struct linux_arch_kernel_header {

@@ -1872,6 +1872,15 @@ module = {
 };
 
 module = {
+  name = slaunch;
+  x86 = loader/i386/slaunch.c;
+  x86 = loader/i386/txt/txt.c;
+  x86 = loader/i386/txt/acmod.c;
+  x86 = loader/i386/txt/verify.c;
+  enable = x86;
+};
+
+module = {
   name = fdt;
   efi = loader/efi/fdt.c;
   common = lib/fdt.c;

@@ -4136,6 +4136,7 @@ Modules can be loaded via the @command{insmod} (@pxref{insmod}) command.
 * tftp_module::
 * tga_module::
 * time_module::
+* tpm_module::
 * tpm_verifier_module::
 * tr_module::
 * trig_module::
@@ -5702,6 +5703,12 @@ image files in GRUB.
 @section time
 This module provides support for the @command{time} command to measure the
 time taken by a given command and output it to the terminal.
+
+@node tpm_module
+@section tpm
+This module provides support for interacting with a Trusted Platform Module
+(TPM) on x86 systems through TIS and CRB. It also provides @command{tpm_type}
+command which shows TPM version and interface type.
 
 @node tpm_verifier_module
 @section tpm_verifier
@@ -8372,6 +8379,7 @@ GRUB shell may provide more information on parameters and usage.
 @item @command{testspeed} - Test file read speed.
 @item @command{tgatest} - Tests loading of TGA bitmap.
 @item @command{time} - Measure time used by COMMAND
+@item @command{tpm_type} - Show TPM version and interface type.
 @item @command{tr} - Translate SET1 characters to SET2 in STRING.
 @item @command{usb} - Test USB support.
 @item @command{vbeinfo} - List available video modes. If resolution is given show only modes matching it.

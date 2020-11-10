@@ -22,8 +22,9 @@
 #define GRUB_I386_SLAUNCH_H 1
 
 /* Secure launch platform types. */
-#define SLP_NONE      0
-#define SLP_INTEL_TXT 1
+#define SLP_NONE       0
+#define SLP_INTEL_TXT  1
+#define SLP_AMD_SKINIT 2
 
 /* PCRs used by Secure launch. */
 #define GRUB_SLAUNCH_CODE_PCR 17

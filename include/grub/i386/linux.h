@@ -412,6 +412,17 @@ struct linux_i386_kernel_header
   grub_uint64_t pref_address;
   grub_uint32_t init_size;
   grub_uint32_t handover_offset;
+  grub_uint32_t kernel_info_offset;
+} GRUB_PACKED;
+
+struct linux_kernel_info
+{
+  grub_uint32_t header;
+  grub_uint32_t size;
+  grub_uint32_t size_total;
+  grub_uint32_t setup_type_max;
+  grub_uint32_t mle_header_offset;
+  grub_uint8_t  var_len_data[0];
 } GRUB_PACKED;
 
 /*

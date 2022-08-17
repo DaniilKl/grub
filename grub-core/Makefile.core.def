@@ -2560,6 +2560,12 @@ module = {
 };
 
 module = {
+  name = tpm;
+  x86 = commands/i386/tpm.c;
+  enable = x86;
+};
+
+module = {
   name = tpm_verifier;
   common = commands/tpm_verifier.c;
   efi = commands/efi/tpm.c;

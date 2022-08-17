@@ -4125,6 +4125,7 @@ Modules can be loaded via the @command{insmod} (@pxref{insmod}) command.
 * sfs_module::
 * shift_test_module::
 * signature_test_module::
+* slaunch_module::
 * sleep_module::
 * sleep_test_module::
 * smbios_module::
@@ -5649,6 +5650,11 @@ operations in GRUB.
 @section signature_test
 This module is intended for performing a functional test of the digital
 signature verification functions in GRUB.
+
+@node slaunch_module
+@section slaunch
+This module provides support for Secure Launch boot in a form of three commands:
+@command{slaunch}, @command{slaunch_module} and @command{slaunch_state}.
 
 @node sleep_module
 @section sleep
@@ -8486,6 +8492,9 @@ GRUB shell may provide more information on parameters and usage.
 @item @command{read_dword} - Read 32-bit value from ADDR.
 @item @command{read_word} - Read 16-bit value from ADDR.
 @item @command{setpci} - Manipulate PCI devices.
+@item @command{slaunch} - Enable secure launcher.
+@item @command{slaunch_module} - Load secure launcher module from file.
+@item @command{slaunch_state} - Display secure launcher state.
 @item @command{suspend} - Return to IEEE1275 prompt.
 @item @command{syslinux_configfile} - Execute syslinux config in new context
 @item @command{syslinux_source} - Execute syslinux config in same context

@@ -28,6 +28,7 @@
 #include <grub/err.h>
 
 extern struct grub_relocator *grub_multiboot2_relocator;
+extern struct grub_slaunch_params grub_multiboot2_slparams;
 
 void grub_multiboot2 (int argc, char *argv[]);
 void grub_module2 (int argc, char *argv[]);
@@ -43,6 +44,8 @@ void grub_multiboot2_set_bootdev (void);
 void
 grub_multiboot2_add_elfsyms (grub_size_t num, grub_size_t entsize,
 			    unsigned shndx, void *data);
+grub_err_t grub_multiboot2_perform_slaunch (grub_uint32_t mbi_target,
+                                            grub_uint32_t mbi_size);
 
 grub_uint32_t grub_multiboot2_get_mmap_count (void);
 grub_err_t grub_multiboot2_set_video_mode (void);

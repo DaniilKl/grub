@@ -37,6 +37,7 @@
 #include <grub/net.h>
 #include <grub/lib/cmdline.h>
 #include <grub/i386/memory.h>
+#include <grub/i386/skinit.h>
 #include <grub/i386/txt.h>
 #include <grub/slaunch.h>
 #include <grub/slr_table.h>
@@ -430,7 +431,8 @@ grub_multiboot2_load (grub_file_t file, const char *filename)
       slparams->tpm_evt_log_base = get_physical_target_address (ch);
       slparams->tpm_evt_log_size = GRUB_SLAUNCH_TPM_EVT_LOG_SIZE;
 
-      if (slparams->platform_type == SLP_INTEL_TXT)
+      /* It's OK to call this for AMD SKINIT because SKL erases the log before use. */
+      if (slparams->platform_type == SLP_INTEL_TXT || slparams->platform_type == SLP_AMD_SKINIT)
         grub_txt_init_tpm_event_log (get_virtual_current_address (ch),
                                      slparams->tpm_evt_log_size);
 
@@ -1256,6 +1258,16 @@ grub_multiboot2_perform_slaunch (grub_uint32_t mbi_target,
       grub_memcpy ((void *)(grub_addr_t) slparams->slr_table_base,
                    slparams->slr_table_mem,
                    slparams->slr_table_size);
+    }
+  else if (slparams->platform_type == SLP_AMD_SKINIT)
+    {
+      err = grub_skl_setup_module (slparams);
+      if (err != GRUB_ERR_NONE)
+        return grub_error (err, "Failed to setup SKL for Multiboot2");
+
+      err = grub_skl_prepare_bootloader_data (slparams);
+      if (err != GRUB_ERR_NONE)
+        return grub_error (err, "SKL preparations have failed");
     }
   else
     return grub_error (GRUB_ERR_BAD_DEVICE,

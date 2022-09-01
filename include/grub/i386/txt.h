@@ -420,6 +420,8 @@ struct grub_txt_sinit_memory_descriptor_records
 /* 2.1 MLE Architecture Overview */
 /* Table 1. MLE Header structure */
 
+#define GRUB_TXT_MLE_UUID "\x5a\xac\x82\x90\x6f\x47\xa7\x74\x0f\x5c\x55\xa2\xcb\x51\xb6\x42"
+
 struct grub_txt_mle_header
 {
   grub_uint8_t uuid[16];

@@ -73,7 +73,7 @@ void dl_entry (grub_uint64_t dl_ctx)
       return;
     }
 
-  if (slparams->boot_type == GRUB_SL_BOOT_TYPE_LINUX)
+  if (slparams->boot_type == GRUB_SL_BOOT_TYPE_LINUX || slparams->boot_type == GRUB_SL_BOOT_TYPE_MB2)
     {
       /* Configure relocator GETSEC[SENTER] call. */
       state.eax = GRUB_SMX_LEAF_SENTER;

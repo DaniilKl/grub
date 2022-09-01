@@ -148,7 +148,7 @@ grub_skl_setup_module (struct grub_slaunch_params *slparams)
   grub_addr_t max_addr;
 #endif
 
-  if (slparams->boot_type == GRUB_SL_BOOT_TYPE_LINUX)
+  if (slparams->boot_type == GRUB_SL_BOOT_TYPE_LINUX || slparams->boot_type == GRUB_SL_BOOT_TYPE_MB2)
     {
       err = grub_relocator_alloc_chunk_align (slparams->relocator, &ch,
 					      0, UP_TO_TOP32(SLB_SIZE), SLB_SIZE,

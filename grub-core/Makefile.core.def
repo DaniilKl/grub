@@ -2560,7 +2560,8 @@ module = {
 };
 
 module = {
-  name = tpm;
+  name = tpm_verifier;
+  common = commands/tpm_verifier.c;
   efi = commands/efi/tpm.c;
   enable = efi;
 };

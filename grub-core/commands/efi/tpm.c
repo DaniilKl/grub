@@ -28,6 +28,8 @@
 #include <grub/tpm.h>
 #include <grub/term.h>
 
+GRUB_MOD_LICENSE ("GPLv3+");
+
 typedef TCG_PCR_EVENT grub_tpm_event_t;
 
 static grub_guid_t tpm_guid = EFI_TPM_GUID;
@@ -267,7 +269,7 @@ grub_cc_log_event (unsigned char *buf, grub_size_t size, grub_uint8_t pcr,
 }
 
 grub_err_t
-grub_tpm_measure (unsigned char *buf, grub_size_t size, grub_uint8_t pcr,
+grub_tpm_log_event (unsigned char *buf, grub_size_t size, grub_uint8_t pcr,
 		    const char *description)
 {
   grub_efi_handle_t tpm_handle;

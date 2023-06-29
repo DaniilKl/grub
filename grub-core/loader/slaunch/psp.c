@@ -34,6 +34,7 @@
 #include <grub/misc.h>
 #include <grub/err.h>
 #include <grub/mm.h>
+#include <grub/time.h>
 #include <grub/pci.h>
 #include <grub/i386/pci.h>
 #include <grub/i386/psp.h>
@@ -74,8 +75,49 @@ static const struct pci_psp_device psp_devs_list[] = {
 
 static struct psp_drtm_interface psp_drtm;
 
+struct drtm_capability
+{
+  int drtm_enabled;
+  int tsme_enabled;
+  int anti_rollback_status_bit;
+  grub_uint32_t version;
+  grub_uint32_t tmr_alignment;
+  grub_uint32_t tmr_count;
+};
+
+static struct drtm_capability drtm_capability;
+
+static const char *drtm_status_strings[] = {
+	"DRTM_NO_ERROR",
+	"DRTM_NOT_SUPPORTED",
+	"DRTM_LAUNCH_ERROR",
+	"DRTM_TMR_SETUP_FAILED_ERROR",
+	"DRTM_TMR_DESTROY_FAILED_ERROR",
+	"UNDEFINED",
+	"UNDEFINED",
+	"DRTM_GET_TCG_LOGS_FAILED_ERROR",
+	"DRTM_OUT_OF_RESOURCES_ERROR",
+	"DRTM_GENERIC_ERROR",
+	"DRTM_INVALID_SERVICE_ID_ERROR",
+	"DRTM_MEMORY_UNALIGNED_ERROR",
+	"DRTM_MINIMUM_SIZE_ERROR",
+	"DRTM_GET_TMR_DESCRIPTOR_FAILED",
+	"DRTM_EXTEND_OSSL_DIGEST_FAILED",
+	"DRTM_SETUP_NOT_ALLOWED",
+	"DRTM_GET_IVRS_TABLE_FAILED"
+};
+
 static grub_err_t init_drtm_interface (grub_uint64_t base_addr, psp_version_t psp_version);
 static void init_drtm_device (grub_pci_device_t dev);
+static int drtm_wait_for_psp_ready (grub_uint32_t *status);
+
+static const char *drtm_status_string (grub_uint32_t status)
+{
+  if (status > DRTM_GET_IVRS_TABLE_FAILED)
+    return "UNDEFINED";
+
+  return drtm_status_strings[status];
+}
 
 static void
 smn_register_read (grub_uint32_t address, grub_uint32_t *value)
@@ -240,6 +282,81 @@ init_drtm_interface (grub_uint64_t base_addr, psp_version_t psp_version)
     default:
       return grub_error (GRUB_ERR_BAD_DEVICE, N_("DRTM: Unrecognized PSP version %d\n"), psp_version);
     }
+
+  return GRUB_ERR_NONE;
+}
+
+static int
+drtm_wait_for_psp_ready (grub_uint32_t *status)
+{
+  int retry = 5;
+  grub_uint32_t reg_val = 0;
+
+  while (--retry)
+    {
+      reg_val = *psp_drtm.c2pmsg_72;
+
+      if (reg_val & DRTM_MBOX_READY_MASK)
+	break;
+
+      /* TODO: select wait time appropriately */
+      grub_millisleep (100);
+    }
+
+  if (!retry)
+    return 0;
+
+  if (status)
+    *status = reg_val & 0xffff;
+
+  return 1;
+}
+
+/*
+ * For some reason this workaround is necessary to
+ * kickstart the DRTM. Without this step, DRTM does
+ * not return the capability.
+ *
+ * TODO: Check with AMD about why this is necessary.
+ */
+void
+grub_drtm_kick_psp (void)
+{
+  *psp_drtm.c2pmsg_72 = 0;
+
+  (void)drtm_wait_for_psp_ready (NULL);
+}
+
+grub_err_t
+grub_drtm_get_capability (void)
+{
+  grub_uint32_t reg_val = 0;
+  grub_uint32_t status = 0;
+
+  if (!drtm_wait_for_psp_ready (NULL))
+    return grub_error (GRUB_ERR_TIMEOUT, N_("DRTM: %s: PSP not ready to accept commands\n"), __func__);
+
+  reg_val = (DRTM_CMD_GET_CAPABILITY << DRTM_MBOX_CMD_SHIFT);
+
+  *psp_drtm.c2pmsg_72 = reg_val;
+
+  if (!drtm_wait_for_psp_ready (&status))
+    return grub_error (GRUB_ERR_TIMEOUT, N_("DRTM: %s: failed to get a response from PSP\n"), __func__);
+
+  if (status != DRTM_NO_ERROR)
+    return grub_error (GRUB_ERR_BAD_DEVICE, N_("DRTM: %s: failed to get PSP capability - %s\n"),
+		       __func__, drtm_status_string (status));
+
+  reg_val = *psp_drtm.c2pmsg_93;
+  drtm_capability.drtm_enabled = (reg_val & 0x1) != 0;
+  drtm_capability.tsme_enabled = (reg_val & 0x2) != 0;
+  drtm_capability.anti_rollback_status_bit = (reg_val & 0x4) != 0;
+
+  drtm_capability.version = *psp_drtm.c2pmsg_94;
+
+  reg_val = *psp_drtm.c2pmsg_95;
+  drtm_capability.tmr_alignment = reg_val & 0x00FFFFFF;
+  drtm_capability.tmr_count = (reg_val & 0xFF000000) >> 24;
 
   return GRUB_ERR_NONE;
 }

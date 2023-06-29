@@ -36,6 +36,9 @@
 #include <grub/mm.h>
 #include <grub/time.h>
 #include <grub/pci.h>
+#include <grub/efi/efi.h>
+#include <grub/efi/api.h>
+#include <grub/i386/linux.h>
 #include <grub/i386/pci.h>
 #include <grub/i386/psp.h>
 
@@ -359,4 +362,56 @@ grub_drtm_get_capability (void)
   drtm_capability.tmr_count = (reg_val & 0xFF000000) >> 24;
 
   return GRUB_ERR_NONE;
+}
+
+/**
+ * Setup Trusted Memory Region (TMR). The PSP supports only
+ * 1 TMR - as such all of the sysmem region is covered in
+ * a single TMR.
+ *
+ * Walk the E820 MB2 memory map table to figure out the end
+ * of the memory addresses. Setup the TMR to cover address
+ * ranges from 0x0 to the end calculated during the walk.
+ */
+int
+grub_drtm_setup_tmrs (grub_uint64_t tmr_end)
+{
+  grub_uint64_t tmr_count = 0;
+  grub_uint32_t status = 0;
+
+  tmr_count = tmr_end / drtm_capability.tmr_alignment;
+  if (tmr_end % drtm_capability.tmr_alignment == 1)
+    tmr_count++;
+
+  if (tmr_count > GRUB_UINT_MAX)
+    {
+      grub_error (GRUB_ERR_BAD_DEVICE, N_("DRTM: %s: memory region bigger than TMR\n"), __func__);
+      return -1;
+    }
+
+  /*
+   * Setup TMR for address range 0x0 to tmr_end. Size is in
+   * multiples of tmr_alignment.
+   */
+  *psp_drtm.c2pmsg_93 = (grub_uint32_t)tmr_count;
+  *psp_drtm.c2pmsg_94 = 0;
+  *psp_drtm.c2pmsg_95 = 0;
+
+  *psp_drtm.c2pmsg_72 = (DRTM_TMR_INDEX_0 << 24) |
+			(DRTM_CMD_TMR_SETUP << DRTM_MBOX_CMD_SHIFT);
+
+  if (!drtm_wait_for_psp_ready (&status))
+    {
+      grub_error (GRUB_ERR_TIMEOUT, N_("DRTM: %s: failed to get a response from PSP\n"), __func__);
+      return -1;
+    }
+
+  if (status != DRTM_NO_ERROR)
+    {
+      grub_error (GRUB_ERR_BAD_DEVICE, N_("DRTM: %s: failed to setup TMRs - %s\n"),
+		  __func__, drtm_status_string (status));
+      return -1;
+    }
+
+  return 0;
 }

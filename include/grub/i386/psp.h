@@ -84,5 +84,6 @@
 extern grub_err_t grub_psp_discover (void);
 extern void grub_drtm_kick_psp (void);
 extern grub_err_t grub_drtm_get_capability (void);
+extern int grub_drtm_setup_tmrs (grub_uint64_t tmr_end);
 
 #endif /* __PSP_H__ */

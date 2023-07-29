@@ -1,0 +1,17 @@
+name: QubesOS RPMs
+
+on:
+  push:
+    branches:
+      - 'aem*'
+      - 'tb*'
+    tags:
+      - '*'
+
+jobs:
+  qubes-dom0-package:
+    uses: TrenchBoot/.github/.github/workflows/qubes-dom0-packagev2.yml@master
+    with:
+      qubes-component: 'grub2'
+      qubes-pkg-src-dir: '.'
+      qubes-pkg-version: '2.13'

@@ -25,6 +25,7 @@
 #include <grub/i18n.h>
 #include <grub/time.h>
 #include <grub/safemath.h>
+#include <grub/env.h>
 
 static char *last_devpath;
 static grub_ieee1275_ihandle_t last_ihandle;

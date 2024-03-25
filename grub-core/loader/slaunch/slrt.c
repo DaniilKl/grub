@@ -24,6 +24,7 @@
 #include <grub/dl.h>
 #include <grub/slr_table.h>
 #include <grub/slaunch.h>
+#include <grub/efi/efi.h>
 #include <grub/i386/linux.h>
 #include <grub/i386/memory.h>
 #include <grub/i386/tpm.h>
@@ -269,4 +270,19 @@ grub_update_slrt_policy (struct grub_slaunch_params *slparams)
           next++;
         }
     }
+}
+
+grub_err_t
+grub_efi_install_slr_table (struct grub_slaunch_params *slparams)
+{
+  grub_guid_t slrt_guid = GRUB_UEFI_SLR_TABLE_GUID;
+  grub_efi_boot_services_t *b;
+  grub_efi_status_t status;
+
+  b = grub_efi_system_table->boot_services;
+  status = b->install_configuration_table (&slrt_guid, (void *)slparams->slr_table_base);
+  if (status != GRUB_EFI_SUCCESS)
+    return grub_error (GRUB_ERR_BAD_OS, "cannot load image");
+
+  return GRUB_ERR_NONE;
 }

@@ -24,6 +24,7 @@
 /* Secure launch platform types. */
 #define SLP_NONE	0
 #define SLP_INTEL_TXT	1
+#define SLP_AMD_SKINIT	2
 
 #define GRUB_SLAUNCH_TPM_EVT_LOG_SIZE	(8 * GRUB_PAGE_SIZE)
 
@@ -72,6 +73,7 @@ struct grub_slaunch_params
   grub_uint32_t platform_type;
   struct linux_kernel_params *boot_params;
   grub_uint64_t boot_params_base;
+  void *efi_memmap_mem;
   struct grub_relocator *relocator;
   grub_uint64_t slr_table_base;
   grub_uint32_t slr_table_size;
@@ -141,6 +143,10 @@ grub_err_t grub_sl_txt_setup_linux (struct grub_slaunch_params *slparams,
                                     struct grub_relocator *relocator,
                                     grub_size_t total_size, grub_size_t prot_size,
                                     void **prot_mode_mem, grub_addr_t *prot_mode_target);
+grub_err_t grub_sl_skinit_setup_linux (struct grub_slaunch_params *slparams,
+                                       struct grub_relocator *relocator,
+                                       grub_size_t total_size, grub_size_t prot_file_size,
+                                       void *prot_mode_mem, grub_addr_t prot_mode_target);
 
 /* EFI functions */
 grub_err_t grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,

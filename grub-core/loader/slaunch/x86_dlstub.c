@@ -22,12 +22,16 @@
 #include <grub/misc.h>
 #include <grub/types.h>
 #include <grub/dl.h>
+#include <grub/time.h>
 #include <grub/slr_table.h>
 #include <grub/slaunch.h>
 #include <grub/cpu/relocator.h>
 #include <grub/i386/msr.h>
 #include <grub/i386/mmio.h>
+#include <grub/i386/psp.h>
+#include <grub/i386/tpm.h>
 #include <grub/i386/txt.h>
+#include <grub/i386/skinit.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -42,11 +46,12 @@ void dl_entry (grub_uint64_t dl_ctx)
 
   state.edi = slparams->platform_type;
 
+  /* This is done on both Intel and AMD platforms */
+  if (slparams->boot_type == GRUB_SL_BOOT_TYPE_EFI)
+    grub_update_slrt_policy (slparams);
+
   if (slparams->platform_type == SLP_INTEL_TXT)
     {
-      if (slparams->boot_type == GRUB_SL_BOOT_TYPE_EFI)
-        grub_update_slrt_policy (slparams);
-
       err = grub_set_mtrrs_for_acmod ((void *)(grub_addr_t)slparams->dce_base);
       if (err)
         {
@@ -60,6 +65,33 @@ void dl_entry (grub_uint64_t dl_ctx)
           grub_error (GRUB_ERR_BAD_DEVICE, N_("prepare CPU for TXT SENTER failed"));
           return;
         }
+    }
+  else if (slparams->platform_type == SLP_AMD_SKINIT)
+    {
+      grub_skl_link_amd_info (slparams);
+
+      err = grub_psp_discover ();
+      if (err == GRUB_ERR_NONE)
+        {
+          err = grub_skinit_psp_memory_protect (slparams);
+          if (err != GRUB_ERR_NONE)
+            {
+              grub_error (GRUB_ERR_BAD_DEVICE, N_("setup PSP TMR memory protection failed"));
+              return;
+            }
+        }
+      else
+        grub_tpm_relinquish_locality (0);
+
+      err = grub_skinit_prepare_cpu ();
+      if ( err )
+        {
+          grub_error (GRUB_ERR_BAD_DEVICE, N_("setup CPU for SKINIT failed"));
+          return;
+        }
+
+      /* Have to do this after EBS or things blow up */
+      grub_skinit_send_init_ipi_shorthand ();
     }
   else
     {
@@ -75,11 +107,19 @@ void dl_entry (grub_uint64_t dl_ctx)
 
   if (slparams->boot_type == GRUB_SL_BOOT_TYPE_LINUX || slparams->boot_type == GRUB_SL_BOOT_TYPE_MB2)
     {
-      /* Configure relocator GETSEC[SENTER] call. */
-      state.eax = GRUB_SMX_LEAF_SENTER;
-      state.ebx = slparams->dce_base;
-      state.ecx = slparams->dce_size;
-      state.edx = 0;
+      if (slparams->platform_type == SLP_INTEL_TXT)
+        {
+          /* Configure relocator GETSEC[SENTER] call. */
+          state.eax = GRUB_SMX_LEAF_SENTER;
+          state.ebx = slparams->dce_base;
+          state.ecx = slparams->dce_size;
+          state.edx = 0;
+        }
+      else if (slparams->platform_type == SLP_AMD_SKINIT)
+        {
+          state.eax = slparams->dce_base;
+        }
+
       grub_relocator32_boot (slparams->relocator, state, 0);
     }
   else if (slparams->boot_type == GRUB_SL_BOOT_TYPE_EFI)

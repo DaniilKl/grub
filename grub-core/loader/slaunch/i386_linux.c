@@ -218,3 +218,44 @@ grub_sl_txt_setup_linux (struct grub_slaunch_params *slparams, struct grub_reloc
 fail:
   return grub_errno;
 }
+
+grub_err_t
+grub_sl_skinit_setup_linux (struct grub_slaunch_params *slparams, struct grub_relocator *relocator,
+                            grub_size_t total_size, grub_size_t prot_file_size,
+                            void *prot_mode_mem, grub_addr_t prot_mode_target)
+{
+  grub_relocator_chunk_t ch;
+
+  slparams->boot_type = GRUB_SL_BOOT_TYPE_LINUX;
+  slparams->relocator = relocator;
+
+  /* Zero out memory to get stable MLE measurements. */
+  grub_memset (prot_mode_mem, 0, total_size);
+
+  slparams->mle_mem = prot_mode_mem;
+  slparams->mle_start = prot_mode_target;
+  slparams->mle_size = prot_file_size;
+
+  /* Less to do on AMD. Just need to setup an event log buffer and some values */
+  if (grub_relocator_alloc_chunk_align (relocator, &ch, 0x1000000,
+                                        0xffffffff - GRUB_SLAUNCH_TPM_EVT_LOG_SIZE,
+                                        GRUB_SLAUNCH_TPM_EVT_LOG_SIZE, GRUB_PAGE_SIZE,
+                                        GRUB_RELOCATOR_PREFERENCE_NONE, 1))
+    goto fail;
+
+  slparams->tpm_evt_log_base = get_physical_target_address (ch);
+  slparams->tpm_evt_log_size = GRUB_SLAUNCH_TPM_EVT_LOG_SIZE;
+
+  grub_memset (get_virtual_current_address (ch), 0, slparams->tpm_evt_log_size);
+
+  grub_dprintf ("linux", "tpm_evt_log_base = %lx, tpm_evt_log_size = %x\n",
+                (unsigned long) slparams->tpm_evt_log_base,
+                (unsigned) slparams->tpm_evt_log_size);
+
+  /* The SLRT is located in the SKL image and the wake block is not needed on AMD */
+
+  return GRUB_ERR_NONE;
+
+fail:
+  return grub_errno;
+}

@@ -195,6 +195,22 @@ struct grub_slr_entry_intel_info
 } GRUB_PACKED;
 
 /*
+ * AMD SKINIT Info table
+ */
+struct grub_slr_entry_amd_info
+{
+  struct grub_slr_entry_hdr hdr;
+  grub_uint64_t next;
+  grub_uint32_t type;
+  grub_uint32_t len;
+  grub_uint64_t slrt_size;
+  grub_uint64_t slrt_base;
+  grub_uint64_t boot_params_base;
+  grub_uint16_t psp_version;
+  grub_uint16_t reserved[3];
+} GRUB_PACKED;
+
+/*
  * UEFI config measurement entry
  */
 struct grub_slr_uefi_cfg_entry

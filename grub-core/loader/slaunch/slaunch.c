@@ -28,6 +28,7 @@
 #include <grub/i386/msr.h>
 #include <grub/i386/mmio.h>
 #include <grub/i386/txt.h>
+#include <grub/i386/skinit.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -74,6 +75,15 @@ grub_cmd_slaunch (grub_command_t cmd __attribute__ ((unused)),
 	return err;
 
       slp = SLP_INTEL_TXT;
+    }
+  else if (!grub_memcmp (manufacturer, "AuthenticAMD", 12))
+    {
+      err = grub_skinit_is_supported ();
+
+      if (err != GRUB_ERR_NONE)
+	return err;
+
+      slp = SLP_AMD_SKINIT;
     }
   else
     return grub_error (GRUB_ERR_UNKNOWN_DEVICE, N_("CPU is unsupported"));
@@ -136,6 +146,14 @@ grub_cmd_slaunch_module (grub_command_t cmd __attribute__ ((unused)),
 	  goto fail;
 	}
     }
+  else if (slp == SLP_AMD_SKINIT)
+    {
+      if (!grub_skl_set_module (slaunch_module, size))
+	{
+	  grub_error (GRUB_ERR_BAD_FILE_TYPE, N_("SKL module isn't correct"));
+	  goto fail;
+	}
+    }
 
   grub_file_close (file);
 
@@ -165,6 +183,10 @@ grub_cmd_slaunch_state (grub_command_t cmd __attribute__ ((unused)),
     {
       grub_printf ("Secure launcher: Intel TXT\n");
       grub_txt_state_show ();
+    }
+  else if (slp == SLP_AMD_SKINIT)
+    {
+      grub_printf ("Secure launcher: AMD SKINIT\n");
     }
 
   return GRUB_ERR_NONE;

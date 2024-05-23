@@ -38,6 +38,7 @@
 #include <grub/lib/cmdline.h>
 #include <grub/i386/mmio.h>
 #include <grub/i386/txt.h>
+#include <grub/i386/skinit.h>
 #include <grub/linux.h>
 #include <grub/machine/kernel.h>
 #include <grub/safemath.h>
@@ -225,6 +226,13 @@ allocate_pages (grub_size_t prot_size, grub_size_t *align,
     {
       err = grub_sl_txt_setup_linux (&slparams, relocator, total_size, prot_size,
                                      &prot_mode_mem, &prot_mode_target);
+      if (err)
+        goto fail;
+    }
+  else if (grub_slaunch_platform_type () == SLP_AMD_SKINIT)
+    {
+      err = grub_sl_skinit_setup_linux (&slparams, relocator, total_size, prot_file_size,
+                                        prot_mode_mem, prot_mode_target);
       if (err)
         goto fail;
     }
@@ -660,16 +668,39 @@ grub_linux_boot (void)
   }
 #endif
 
-  if (grub_slaunch_platform_type () == SLP_INTEL_TXT)
+  if (grub_slaunch_platform_type () == SLP_AMD_SKINIT)
+    {
+      /*
+       * AMD SKL final setup may relocate the SKL module. It is also what sets the SLRT and DCE
+       * values in slparams so this must be done before final setup and launch below.
+       */
+      err = grub_skl_setup_module (&slparams);
+      if (err != GRUB_ERR_NONE)
+        return err;
+    }
+
+  if (grub_slaunch_platform_type () != SLP_NONE)
     {
       struct grub_slr_table *slrt = (struct grub_slr_table *)slparams.slr_table_mem;
       struct grub_slr_entry_dl_info *dlinfo;
 
+      slparams.efi_memmap_mem = efi_mmap_buf;
       slparams.platform_type = grub_slaunch_platform_type();
 
-      err = grub_txt_boot_prepare (&slparams);
-      if (err != GRUB_ERR_NONE)
-        return err;
+      if (grub_slaunch_platform_type () == SLP_INTEL_TXT)
+        {
+          err = grub_txt_boot_prepare (&slparams);
+          if (err != GRUB_ERR_NONE)
+	    return err;
+        }
+      else if (grub_slaunch_platform_type () == SLP_AMD_SKINIT)
+        {
+          err = grub_skl_prepare_bootloader_data (&slparams);
+          if (err != GRUB_ERR_NONE)
+            return err;
+        }
+      else
+        return GRUB_ERR_BAD_DEVICE;
 
       dlinfo = grub_slr_next_entry_by_tag (slrt, NULL, GRUB_SLR_ENTRY_DL_INFO);
       dl_entry ((grub_uint64_t)&dlinfo->bl_context);

@@ -27,6 +27,7 @@
 #define GRUB_PCI_DATA_REG	0xcfc
 #define GRUB_PCI_NUM_BUS        256
 #define GRUB_PCI_NUM_DEVICES    32
+#define GRUB_PCI_NUM_FUNCTIONS  8
 
 static inline grub_uint32_t
 grub_pci_read (grub_pci_address_t addr)

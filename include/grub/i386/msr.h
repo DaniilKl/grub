@@ -30,6 +30,12 @@
 #define GRUB_MSR_X86_APICBASE_ENABLE    (1<<11)
 #define GRUB_MSR_X86_APICBASE_BASE      (0xfffff<<12) /* Mask for APIC base address */
 
+#define GRUB_MSR_X86_X2APICBASE_ENABLE     (1<<10)
+#define GRUB_MSR_X86_X2APICBASE_ICR        0x830
+#define GRUB_MSR_X86_LAPIC_ICR_LO          0x300
+#define GRUB_MSR_X86_ICR_MODE_INIT         (5<<8)
+#define GRUB_MSR_X86_ICR_DELIVER_EXCL_SELF (3<<18)
+
 #define GRUB_MSR_X86_FEATURE_CONTROL    0x0000003a
 #define GRUB_MSR_X86_ENABLE_VMX_IN_SMX  (1<<1)     /* Enable VMX inside SMX */
 #define GRUB_MSR_X86_SENTER_FUNCTIONS   (0x7f<<8)  /* Bitmap of SENTER function enables */

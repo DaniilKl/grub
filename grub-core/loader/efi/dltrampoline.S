@@ -18,15 +18,13 @@
 
 #include <config.h>
 #include <grub/symbol.h>
+#include <grub/slaunch.h>
+#include <grub/i386/crfr.h>
+#include <grub/i386/msr.h>
 
 #define GRUB_SMX_LEAF_SENTER	4
 #define CS_SEL32		0x0008
 #define DS_SEL			0x0010
-
-#define CR0_PE  0x00000001
-#define CR0_MP  0x00000002
-#define CR0_TS  0x00000008
-#define CR0_NE  0x00000020
 
 	.file	"dltrampoline.S"
 	.text
@@ -53,7 +51,7 @@ dl_trampoline:
 	lretq
 
 	.code32
-1:	/* Now in IA-32e compatibility mode load data segments and do senter */
+1:	/* Now in long compatibility (IA-32e), mode load data segments */
 	movw	$DS_SEL, %ax
 	movw	%ax, %ds
 	movw	%ax, %es
@@ -61,11 +59,36 @@ dl_trampoline:
 	movw	%ax, %fs
 	movw	%ax, %gs
 
+	cmpl	$SLP_AMD_SKINIT, %edx
+	je	1f
+
+	/* Intel SENTER */
 	movl	$GRUB_SMX_LEAF_SENTER, %eax
 	movl	%edi, %ebx
 	movl	%esi, %ecx
 	xorl	%edx, %edx
 	getsec
+
+1:
+	/* Turn paging off - we are identity mapped so we will survive */
+	movl	%cr0, %eax
+	andl	$~(GRUB_CR0_X86_PG | GRUB_CR0_X86_NE | GRUB_CR0_X86_TS | GRUB_CR0_X86_MP), %eax
+	movl	%eax, %cr0
+
+	/* Disable long mode */
+	movl	$(GRUB_MSR_X86_EFER), %ecx
+	rdmsr
+	andl	$~(GRUB_MSR_EFER_LME), %eax
+	wrmsr
+
+	/* Now in protected mode, disable PAE */
+	movl	%cr4, %eax
+	andl	$~(GRUB_CR4_X86_PAE), %eax
+	movl	%eax, %cr4
+
+	/* AMD SKINIT */
+	movl	%edi, %eax
+	skinit
 
 	.align 8
 dl_gdt:

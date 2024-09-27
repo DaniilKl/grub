@@ -108,6 +108,12 @@ grub_chainloader_boot (void *context)
       if (err != GRUB_ERR_NONE)
         return grub_error (err, "Secure Launch setup TXT failed");
     }
+  else if (grub_slaunch_platform_type () == SLP_AMD_SKINIT)
+    {
+      err = grub_sl_efi_skinit_setup (&slparams, image_mem, loaded_image, /*is_linux=*/false);
+      if (err != GRUB_ERR_NONE)
+        return grub_error (err, "Secure Launch setup SKINIT failed");
+    }
 
   b = grub_efi_system_table->boot_services;
   status = b->start_image (image_handle, &exit_data_size, &exit_data);

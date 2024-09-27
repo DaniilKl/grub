@@ -249,6 +249,15 @@ grub_arch_efi_linux_boot_image (grub_addr_t addr, grub_size_t size, char *args)
           goto unload;
         }
     }
+  else if (grub_slaunch_platform_type () == SLP_AMD_SKINIT)
+    {
+      err = grub_sl_efi_skinit_setup (&slparams, kernel_addr, loaded_image);
+      if (err != GRUB_ERR_NONE)
+        {
+          grub_error (err, "Secure Launch setup SKINIT failed");
+          goto unload;
+        }
+    }
 
   grub_dprintf ("linux", "starting image %p\n", image_handle);
   status = b->start_image (image_handle, 0, NULL);

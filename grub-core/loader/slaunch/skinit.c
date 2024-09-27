@@ -122,18 +122,32 @@ grub_skinit_psp_memory_protect (struct grub_slaunch_params *slparams)
   grub_efi_memory_descriptor_t *memory_map_end;
   grub_efi_memory_descriptor_t *desc;
   struct grub_efi_info *efi_info;
-  grub_uint64_t efi_memmap, tmr_end = 0;
+  grub_uint64_t efi_memmap, hi_val, tmr_end = 0;
   grub_err_t err;
 
   /* A bit of work to extract the v2.08 EFI info from the linux params */
   efi_info = (struct grub_efi_info *)((grub_uint8_t *)&(boot_params->v0208)
                                       + 2*sizeof(grub_uint32_t));
 
-  /*
-   * On legacy Linux boots, the relocator is used to map the EFI memory map buffer
-   * and return a virtual address to use. This virtual address is stashed in slparams.
-   */
-  efi_memmap = (grub_uint64_t)(grub_addr_t)slparams->efi_memmap_mem;
+  if (slparams->boot_type == GRUB_SL_BOOT_TYPE_EFI)
+    {
+      /*
+       * On EFI stub boots, the EFI memory map is fetched from the stub code so it
+       * needs to be gotten from the boot params on re-entry to the DL stub. The EFI
+       * info in boot params has physical addresses but everything is identity mapped.
+       */
+      efi_memmap = efi_info->efi_mmap;
+      hi_val = efi_info->efi_mmap_hi;
+      efi_memmap |= (hi_val << 32);
+    }
+  else
+    {
+      /*
+       * On legacy Linux boots, the relocator is used to map the EFI memory map buffer
+       * and return a virtual address to use. This virtual address is stashed in slparams.
+       */
+      efi_memmap = (grub_uint64_t)(grub_addr_t)slparams->efi_memmap_mem;
+    }
 
   desc = (grub_efi_memory_descriptor_t *)(grub_addr_t) efi_memmap;
   memory_map_end = (grub_efi_memory_descriptor_t *)(grub_addr_t) (efi_memmap + efi_info->efi_mmap_size);

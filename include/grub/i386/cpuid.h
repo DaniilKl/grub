@@ -28,9 +28,10 @@
 #define GRUB_SMX_CPUID_FEATURE  (1<<6)
 
 /* AMD */
-#define GRUB_AMD_CPUID_FEATURES 0x80000001
-#define GRUB_SVM_CPUID_FEATURE  (1<<2)
-#define GRUB_AMD_CPUID_FUNC     0x8000000a
+#define GRUB_AMD_CPUID_FEATURES   0x80000001
+#define GRUB_SVM_CPUID_FEATURE    (1<<2)
+#define GRUB_AMD_CPUID_FUNC       0x8000000a
+#define GRUB_SKINIT_CPUID_FEATURE (1<<12)
 
 extern unsigned char grub_cpuid_has_longmode;
 extern unsigned char grub_cpuid_has_pae;

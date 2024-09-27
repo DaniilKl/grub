@@ -40,6 +40,10 @@
 #include <grub/i386/linux.h>
 #include <grub/i386/psp.h>
 #include <grub/i386/skinit.h>
+#include <grub/efi/efi.h>
+#include <grub/efi/memory.h>
+#undef GRUB_MEMORY_CPU_HEADER
+#include <grub/x86_64/efi/memory.h>
 
 #define SLRT_SIZE GRUB_PAGE_SIZE
 
@@ -141,18 +145,47 @@ grub_skl_setup_module (struct grub_slaunch_params *slparams)
   grub_phys_addr_t p_addr;
   grub_uint8_t *v_addr;
   grub_err_t err;
+#ifdef GRUB_MACHINE_EFI
+  grub_addr_t max_addr;
+#endif
 
-  err = grub_relocator_alloc_chunk_align (slparams->relocator, &ch,
-					  0, UP_TO_TOP32(SLB_SIZE), SLB_SIZE,
-					  SLB_MIN_ALIGNMENT,
-					  GRUB_RELOCATOR_PREFERENCE_HIGH,
-					  1);
+  if (slparams->boot_type == GRUB_SL_BOOT_TYPE_LINUX)
+    {
+      err = grub_relocator_alloc_chunk_align (slparams->relocator, &ch,
+                                              0, UP_TO_TOP32(SLB_SIZE), SLB_SIZE,
+                                              SLB_MIN_ALIGNMENT,
+                                              GRUB_RELOCATOR_PREFERENCE_HIGH,
+                                              1);
 
-  if (err != GRUB_ERR_NONE)
-    return grub_error (err, N_("failed to allocate SLB"));
+      if (err != GRUB_ERR_NONE)
+        return grub_error (err, N_("failed to allocate SLB"));
 
-  v_addr = get_virtual_current_address (ch);
-  p_addr = get_physical_target_address (ch);
+      v_addr = get_virtual_current_address (ch);
+      p_addr = get_physical_target_address (ch);
+    }
+  else if (slparams->boot_type == GRUB_SL_BOOT_TYPE_EFI)
+    {
+#ifdef GRUB_MACHINE_EFI
+      max_addr = ALIGN_DOWN ((GRUB_EFI_MAX_USABLE_ADDRESS - SLB_SIZE),
+                             GRUB_PAGE_SIZE);
+
+      v_addr = grub_efi_allocate_pages_real (max_addr,
+                                             GRUB_EFI_BYTES_TO_PAGES(SLB_SIZE + SLB_MIN_ALIGNMENT),
+                                             GRUB_EFI_ALLOCATE_MAX_ADDRESS,
+                                             GRUB_EFI_LOADER_DATA);
+      if (!v_addr)
+        return GRUB_ERR_OUT_OF_MEMORY;
+
+      v_addr = (grub_uint8_t *) ALIGN_UP ((grub_addr_t) v_addr, SLB_MIN_ALIGNMENT);
+      p_addr = (grub_addr_t) v_addr;
+#else
+      return GRUB_ERR_BUG;
+#endif
+    }
+  else
+    {
+      return grub_error (GRUB_ERR_BUG, N_("unknown dynamic launch boot type: %d"), slparams->boot_type);
+    }
 
   grub_memcpy (v_addr, skl_module, skl_size);
   skl_module = (struct grub_sl_header *) v_addr;

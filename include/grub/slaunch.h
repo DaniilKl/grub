@@ -141,6 +141,8 @@ grub_err_t grub_sl_skinit_setup_linux (struct grub_slaunch_params *slparams,
 /* EFI functions */
 grub_err_t grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
                                   grub_efi_loaded_image_t *loaded_image, bool is_linux);
+grub_err_t grub_sl_efi_skinit_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
+                                     grub_efi_loaded_image_t *loaded_image, bool is_linux);
 
 #endif /* ASM_FILE */
 

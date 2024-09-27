@@ -35,7 +35,7 @@
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
-extern void dl_trampoline(grub_uint32_t dce_base, grub_uint32_t dce_size);
+extern void dl_trampoline(grub_uint32_t dce_base, grub_uint32_t dce_size, grub_uint32_t platform);
 
 void dl_entry (grub_uint64_t dl_ctx)
 {
@@ -124,7 +124,7 @@ void dl_entry (grub_uint64_t dl_ctx)
     }
   else if (slparams->boot_type == GRUB_SL_BOOT_TYPE_EFI)
     {
-      dl_trampoline (slparams->dce_base, slparams->dce_size);
+      dl_trampoline (slparams->dce_base, slparams->dce_size, slparams->platform_type);
     }
   else
     {

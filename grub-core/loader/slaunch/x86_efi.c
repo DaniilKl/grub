@@ -33,6 +33,7 @@
 #include <grub/i386/memory.h>
 #include <grub/i386/linux.h>
 #include <grub/i386/txt.h>
+#include <grub/i386/skinit.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -371,6 +372,83 @@ fail:
     grub_efi_free_pages ((grub_addr_t)slmem, GRUB_EFI_BYTES_TO_PAGES (slmem_size));
 
   grub_efi_free_pages ((grub_addr_t)addr, GRUB_EFI_BYTES_TO_PAGES (slparams->mle_ptab_size));
+
+  return err;
+}
+
+grub_err_t
+grub_sl_efi_skinit_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
+                          grub_efi_loaded_image_t *loaded_image, bool is_linux)
+{
+  struct linux_kernel_params *lh = (struct linux_kernel_params *)kernel_addr;
+  grub_addr_t image_base = (grub_addr_t)loaded_image->image_base;
+  grub_efi_uint64_t image_size = loaded_image->image_size;
+  grub_uint8_t *logmem;
+  grub_addr_t max_addr;
+  grub_ssize_t start = 0;
+  grub_err_t err;
+
+  slparams->boot_type = GRUB_SL_BOOT_TYPE_EFI;
+  slparams->platform_type = grub_slaunch_platform_type();
+
+  /* See comment in TXT setup function grub_sl_efi_txt_setup () */
+  if (is_linux)
+    {
+      slparams->boot_params = &boot_params;
+      slparams->boot_params_base = (grub_addr_t)&boot_params;
+
+      start = (lh->hdr.setup_sects + 1) * 512;
+    }
+
+  /* See comment in TXT setup function grub_sl_efi_txt_setup () */
+  slparams->mle_start = image_base + start;
+  slparams->mle_size = image_size - start;
+
+  max_addr = ALIGN_DOWN ((GRUB_EFI_MAX_USABLE_ADDRESS - GRUB_EFI_SLAUNCH_TPM_EVT_LOG_SIZE),
+                          GRUB_PAGE_SIZE);
+
+  logmem = grub_efi_allocate_pages_real (max_addr,
+                                         GRUB_EFI_BYTES_TO_PAGES(GRUB_EFI_SLAUNCH_TPM_EVT_LOG_SIZE),
+                                         GRUB_EFI_ALLOCATE_MAX_ADDRESS,
+                                         GRUB_EFI_LOADER_DATA);
+  if (!logmem)
+    {
+      grub_error (GRUB_ERR_OUT_OF_MEMORY, N_("out of memory"));
+      return GRUB_ERR_OUT_OF_MEMORY;
+    }
+
+  slparams->tpm_evt_log_base = (grub_addr_t)logmem;
+  slparams->tpm_evt_log_size = GRUB_EFI_SLAUNCH_TPM_EVT_LOG_SIZE;
+  /* It's OK to call this for AMD SKINIT because SKL erases the log before use. */
+  grub_txt_init_tpm_event_log (logmem, slparams->tpm_evt_log_size);
+
+  err = sl_efi_load_mle_data (slparams, kernel_addr, start, loaded_image, is_linux);
+  if (err != GRUB_ERR_NONE)
+    {
+      grub_dprintf ("slaunch", N_("failed to load MLE data\n"));
+      goto fail;
+    }
+
+  /*
+   * AMD SKL final setup may relocate the SKL module. It is also what sets the SLRT and DCE
+   * values in slparams so this must be done before final setup and launch below.
+   */
+  err = grub_skl_setup_module (slparams);
+  if (err != GRUB_ERR_NONE)
+    goto fail;
+
+  err = grub_skl_prepare_bootloader_data (slparams);
+  if (err != GRUB_ERR_NONE)
+    goto fail;
+
+  err = sl_efi_install_slr_table (slparams);
+  if (err != GRUB_ERR_NONE)
+    goto fail;
+
+  return GRUB_ERR_NONE;
+
+fail:
+  grub_efi_free_pages ((grub_addr_t)logmem, GRUB_EFI_BYTES_TO_PAGES(GRUB_EFI_SLAUNCH_TPM_EVT_LOG_SIZE));
 
   return err;
 }

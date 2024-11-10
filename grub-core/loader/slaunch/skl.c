@@ -45,6 +45,7 @@
 #include <grub/x86_64/efi/memory.h>
 
 #define SLB_MIN_ALIGNMENT 0x10000
+#define SLB_SIZE          0x10000
 
 static struct grub_skl_info skl_info = {
   .uuid = {
@@ -102,7 +103,7 @@ grub_skl_setup_module (struct grub_slaunch_params *slparams)
   if (slparams->boot_type == GRUB_SL_BOOT_TYPE_LINUX)
     {
       err = grub_relocator_alloc_chunk_align (slparams->relocator, &ch,
-					      0, 0xFFFFFFFF, skl_size,
+					      0, UP_TO_TOP32(SLB_SIZE), SLB_SIZE,
 					      SLB_MIN_ALIGNMENT,
 					      GRUB_RELOCATOR_PREFERENCE_HIGH,
 					      1);
@@ -116,11 +117,11 @@ grub_skl_setup_module (struct grub_slaunch_params *slparams)
   else
     {
 #ifdef GRUB_MACHINE_EFI
-      max_addr = ALIGN_DOWN ((GRUB_EFI_MAX_USABLE_ADDRESS - skl_size),
+      max_addr = ALIGN_DOWN ((GRUB_EFI_MAX_USABLE_ADDRESS - SLB_SIZE),
                              GRUB_PAGE_SIZE);
 
       v_addr = grub_efi_allocate_pages_real (max_addr,
-                                             GRUB_EFI_BYTES_TO_PAGES(skl_size + SLB_MIN_ALIGNMENT),
+                                             GRUB_EFI_BYTES_TO_PAGES(SLB_SIZE + SLB_MIN_ALIGNMENT),
                                              GRUB_EFI_ALLOCATE_MAX_ADDRESS,
                                              GRUB_EFI_LOADER_DATA);
       if (!v_addr)
@@ -142,7 +143,7 @@ grub_skl_setup_module (struct grub_slaunch_params *slparams)
 
   /* The SLRT resides in the relocated SKL bootloader_data section, set the values here */
   slparams->slr_table_base = (grub_uint64_t)p_addr + skl_module->bootloader_data_offset;
-  slparams->slr_table_size = skl_size - skl_module->bootloader_data_offset;
+  slparams->slr_table_size = SLB_SIZE - skl_module->bootloader_data_offset;
   slparams->slr_table_mem = v_addr + skl_module->bootloader_data_offset;
 
   return GRUB_ERR_NONE;

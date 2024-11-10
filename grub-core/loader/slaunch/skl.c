@@ -44,6 +44,8 @@
 #undef GRUB_MEMORY_CPU_HEADER
 #include <grub/x86_64/efi/memory.h>
 
+#define SLRT_SIZE GRUB_PAGE_SIZE
+
 #define SLB_MIN_ALIGNMENT 0x10000
 #define SLB_SIZE          0x10000
 
@@ -66,22 +68,67 @@ grub_skl_set_module (const void *skl_base, grub_uint32_t size)
   struct grub_skl_info *info;
   struct grub_sl_header *module = (struct grub_sl_header *) skl_base;
 
-  if (skl_size < (8*GRUB_PAGE_SIZE))
+  /* We need unused space after the module to fit SLRT there. */
+  const grub_uint32_t max_size = SLB_SIZE - SLRT_SIZE;
+
+  if (size > max_size)
     {
-      grub_dprintf ("slaunch", "Possible SKL module too small\n");
+      grub_dprintf ("slaunch", "Possible SKL module is too large: %u > %u\n",
+                    size, max_size);
+      return 0;
+    }
+
+  if (module->length > size)
+    {
+      grub_dprintf ("slaunch",
+                    "Possible SKL module has wrong measured size: %u > %u\n",
+                    module->length, size);
+      return 0;
+    }
+
+  if (module->skl_entry_point >= module->length)
+    {
+      grub_dprintf ("slaunch",
+                    "Possible SKL module doesn't measure its entry: %u >= %u\n",
+                    module->skl_entry_point, module->length);
+      return 0;
+    }
+
+  if (module->skl_info_offset > module->length - sizeof (info->uuid))
+    {
+      grub_dprintf ("slaunch",
+                    "Possible SKL module doesn't measure info: %u > %u\n",
+                    module->skl_info_offset,
+                    module->length - sizeof (info->uuid));
+      return 0;
+    }
+
+  if (SLB_SIZE - module->bootloader_data_offset < SLRT_SIZE)
+    {
+      grub_dprintf ("slaunch",
+                    "Possible SKL module has not enough space for SLRT: %u < %u\n",
+                    SLB_SIZE - module->bootloader_data_offset, SLRT_SIZE);
+      return 0;
+    }
+
+  if (module->length > module->bootloader_data_offset)
+    {
+      grub_dprintf ("slaunch",
+                    "Possible SKL module measures bootloader data: %u (measured prefix) > %u (data offset)\n",
+                    module->length, module->bootloader_data_offset);
       return 0;
     }
 
   info = (struct grub_skl_info *) ((grub_uint8_t *) module + module->skl_info_offset);
   if (info->version != GRUB_SKL_VERSION)
     {
-      grub_dprintf ("slaunch", "Possible SKL module incorrect version\n");
+      grub_dprintf ("slaunch", "Possible SKL module has unexpected version\n");
       return 0;
     }
 
   if (grub_memcmp (info->uuid, skl_info.uuid, 16))
     {
-      grub_dprintf ("slaunch", "Possible SKL module incorrect UUID\n");
+      grub_dprintf ("slaunch", "Possible SKL module has unexpected UUID\n");
       return 0;
     }
 

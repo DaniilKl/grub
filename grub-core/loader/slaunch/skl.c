@@ -94,8 +94,10 @@ grub_skl_setup_module (struct grub_slaunch_params *slparams)
   grub_relocator_chunk_t ch;
   grub_phys_addr_t p_addr;
   grub_uint8_t *v_addr;
-  grub_addr_t max_addr;
   grub_err_t err;
+#ifdef GRUB_MACHINE_EFI
+  grub_addr_t max_addr;
+#endif
 
   if (slparams->boot_type == GRUB_SL_BOOT_TYPE_LINUX)
     {
@@ -113,6 +115,7 @@ grub_skl_setup_module (struct grub_slaunch_params *slparams)
     }
   else
     {
+#ifdef GRUB_MACHINE_EFI
       max_addr = ALIGN_DOWN ((GRUB_EFI_MAX_USABLE_ADDRESS - skl_size),
                              GRUB_PAGE_SIZE);
 
@@ -125,6 +128,9 @@ grub_skl_setup_module (struct grub_slaunch_params *slparams)
 
       v_addr = (grub_uint8_t *) ALIGN_UP ((grub_addr_t) v_addr, SKL_MIN_AIGNMENT);
       p_addr = (grub_addr_t) v_addr;
+#else
+      return GRUB_ERR_BUG;
+#endif
     }
 
   grub_memcpy (v_addr, skl_module, skl_size);

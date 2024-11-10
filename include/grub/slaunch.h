@@ -55,6 +55,7 @@ struct grub_slaunch_params
   grub_uint64_t slr_table_base;
   grub_uint32_t slr_table_size;
   void *slr_table_mem;
+  void *mle_mem;
   grub_uint32_t mle_start;
   grub_uint32_t mle_size;
   grub_uint64_t mle_ptab_target;

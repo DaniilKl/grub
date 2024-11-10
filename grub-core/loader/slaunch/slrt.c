@@ -160,7 +160,7 @@ grub_setup_slrt_dl_info (struct grub_slaunch_params *slparams)
 {
   struct grub_txt_mle_header *mle_header;
 
-  mle_header = (struct grub_txt_mle_header *)((grub_addr_t) slparams->mle_start + slparams->mle_header_offset);
+  mle_header = (struct grub_txt_mle_header *)((grub_addr_t) slparams->mle_mem + slparams->mle_header_offset);
 
   /* Setup DL entry point, DCE and DLME information */
   slr_dl_info_staging.bl_context.bootloader = GRUB_SLR_BOOTLOADER_GRUB;

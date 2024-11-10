@@ -156,10 +156,6 @@ grub_skinit_psp_memory_protect (struct grub_slaunch_params *slparams)
       tmr_end = desc->physical_start + (desc->num_pages << 12);
     }
 
-  err = grub_psp_discover ();
-  if (err != GRUB_ERR_NONE)
-    return err;
-
   grub_drtm_kick_psp ();
 
   err = grub_drtm_get_capability ();

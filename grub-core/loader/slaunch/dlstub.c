@@ -28,6 +28,8 @@
 #include <grub/cpu/relocator.h>
 #include <grub/i386/msr.h>
 #include <grub/i386/mmio.h>
+#include <grub/i386/psp.h>
+#include <grub/i386/tpm.h>
 #include <grub/i386/txt.h>
 #include <grub/i386/skinit.h>
 
@@ -68,12 +70,18 @@ void dl_entry (grub_uint64_t dl_ctx)
     {
       grub_skl_link_amd_info (slparams);
 
-      err = grub_skinit_psp_memory_protect (slparams);
-      if ( err )
+      err = grub_psp_discover ();
+      if (err == GRUB_ERR_NONE)
         {
-          grub_error (GRUB_ERR_BAD_DEVICE, N_("setup PSP TMR memory protection failed"));
-          return;
+          err = grub_skinit_psp_memory_protect (slparams);
+          if (err != GRUB_ERR_NONE)
+            {
+              grub_error (GRUB_ERR_BAD_DEVICE, N_("setup PSP TMR memory protection failed"));
+              return;
+            }
         }
+      else
+        grub_tpm_relinquish_locality (0);
 
       err = grub_skinit_prepare_cpu ();
       if ( err )

@@ -229,7 +229,7 @@ grub_txt_prepare_cpu (void)
 	  mcg_stat = grub_rdmsr (GRUB_MSR_X86_MC0_STATUS + i * 4);
 	  if (mcg_stat & (1ULL << 63))
 	    return grub_error (GRUB_ERR_BAD_DEVICE,
-			       N_("secure launch MCG[%u] = %lx ERROR"), i, mcg_stat);
+			       N_("secure launch MCG[%u] = %llx ERROR"), i, (unsigned long long)mcg_stat);
         }
     }
 

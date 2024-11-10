@@ -509,10 +509,10 @@ set_txt_info_ptr (struct grub_slaunch_params *slparams,
 {
   struct grub_slr_entry_hdr *txt_info;
 
-  txt_info = grub_slr_next_entry_by_tag ((struct grub_slr_table *)slparams->slr_table_base,
+  txt_info = grub_slr_next_entry_by_tag ((struct grub_slr_table *)(grub_addr_t)slparams->slr_table_base,
                                          NULL,
                                          GRUB_SLR_ENTRY_INTEL_INFO);
-  os_mle_data->txt_info = (grub_uint64_t)txt_info;
+  os_mle_data->txt_info = (grub_addr_t)txt_info;
 }
 
 static grub_err_t
@@ -560,7 +560,7 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
   /* Setup the TXT specific SLR information and policy entry */
   slr_intel_info_staging.hdr.tag = GRUB_SLR_ENTRY_INTEL_INFO;
   slr_intel_info_staging.hdr.size = sizeof(struct grub_slr_entry_intel_info);
-  slr_intel_info_staging.txt_heap = (grub_uint64_t)txt_heap;
+  slr_intel_info_staging.txt_heap = (grub_addr_t)txt_heap;
   slr_intel_info_staging.saved_misc_enable_msr =
                grub_rdmsr (GRUB_MSR_X86_MISC_ENABLE);
   grub_memcpy (&(slr_intel_info_staging.saved_bsp_mtrrs), &saved_mtrrs_state,
@@ -568,7 +568,7 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
 
   slr_intel_policy_staging.pcr = 18;
   slr_intel_policy_staging.entity_type = GRUB_SLR_ET_TXT_OS2MLE;
-  slr_intel_policy_staging.entity = (grub_uint64_t)os_mle_data;
+  slr_intel_policy_staging.entity = (grub_addr_t)os_mle_data;
   slr_intel_policy_staging.size = sizeof(struct grub_txt_os_mle_data);
   grub_strcpy (slr_intel_policy_staging.evt_info, "Measured TXT OS-MLE data");
 

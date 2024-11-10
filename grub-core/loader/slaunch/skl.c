@@ -153,12 +153,12 @@ grub_skl_link_amd_info (struct grub_slaunch_params *slparams)
 {
   struct grub_slr_entry_amd_info *amd_info;
 
-  amd_info = grub_slr_next_entry_by_tag ((struct grub_slr_table *)slparams->slr_table_base,
+  amd_info = grub_slr_next_entry_by_tag ((struct grub_slr_table *)(grub_addr_t) slparams->slr_table_base,
                                          NULL,
                                          GRUB_SLR_ENTRY_AMD_INFO);
 
   amd_info->next = slparams->boot_params->setup_data;
-  slparams->boot_params->setup_data = (grub_uint64_t)amd_info + sizeof (struct grub_slr_entry_hdr);
+  slparams->boot_params->setup_data = (grub_uint64_t)(grub_addr_t)amd_info + sizeof (struct grub_slr_entry_hdr);
 }
 
 grub_err_t

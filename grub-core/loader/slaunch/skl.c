@@ -64,8 +64,7 @@ int
 grub_skl_set_module (const void *skl_base, grub_uint32_t size)
 {
   struct grub_skl_info *info;
-  skl_module = (struct grub_sl_header *) skl_base;
-  skl_size = size;
+  struct grub_sl_header *module = (struct grub_sl_header *) skl_base;
 
   if (skl_size < (8*GRUB_PAGE_SIZE))
     {
@@ -73,7 +72,7 @@ grub_skl_set_module (const void *skl_base, grub_uint32_t size)
       return 0;
     }
 
-  info = (struct grub_skl_info *) ((grub_uint8_t *) skl_module + skl_module->skl_info_offset);
+  info = (struct grub_skl_info *) ((grub_uint8_t *) module + module->skl_info_offset);
   if (info->version != GRUB_SKL_VERSION)
     {
       grub_dprintf ("slaunch", "Possible SKL module incorrect version\n");
@@ -86,6 +85,8 @@ grub_skl_set_module (const void *skl_base, grub_uint32_t size)
       return 0;
     }
 
+  skl_module = module;
+  skl_size = size;
   return 1;
 }
 

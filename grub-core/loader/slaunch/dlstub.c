@@ -93,6 +93,11 @@ void dl_entry (grub_uint64_t dl_ctx)
       /* Have to do this after EBS or things blow up */
       grub_skinit_send_init_ipi_shorthand ();
     }
+  else
+    {
+      grub_error (GRUB_ERR_BUG, N_("unknown dynamic launch platform: %d"), state.edi);
+      return;
+    }
 
   if (!(grub_rdmsr (GRUB_MSR_X86_APICBASE) & GRUB_MSR_X86_APICBASE_BSP))
     {
@@ -110,13 +115,19 @@ void dl_entry (grub_uint64_t dl_ctx)
           state.ecx = slparams->dce_size;
           state.edx = 0;
         }
-      else /* SLP_AMD_SKINIT */
-        state.eax = slparams->dce_base;
+      else if (state.edi == SLP_AMD_SKINIT)
+        {
+          state.eax = slparams->dce_base;
+        }
 
       grub_relocator32_boot (slparams->relocator, state, 0);
     }
-  else /* GRUB_SL_BOOT_TYPE_EFI */
+  else if (slparams->boot_type == GRUB_SL_BOOT_TYPE_EFI)
     {
       dl_trampoline (slparams->dce_base, slparams->dce_size, state.edi);
+    }
+  else
+    {
+      grub_error (GRUB_ERR_BUG, N_("unknown dynamic launch boot type: %d"), slparams->boot_type);
     }
 }

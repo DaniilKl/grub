@@ -157,12 +157,12 @@ grub_skl_setup_module (struct grub_slaunch_params *slparams)
 					      1);
 
       if (err != GRUB_ERR_NONE)
-        return err;
+        return grub_error (err, N_("failed to allocate SLB"));
 
       v_addr = get_virtual_current_address (ch);
       p_addr = get_physical_target_address (ch);
     }
-  else
+  else if (slparams->boot_type == GRUB_SL_BOOT_TYPE_EFI)
     {
 #ifdef GRUB_MACHINE_EFI
       max_addr = ALIGN_DOWN ((GRUB_EFI_MAX_USABLE_ADDRESS - SLB_SIZE),
@@ -180,6 +180,10 @@ grub_skl_setup_module (struct grub_slaunch_params *slparams)
 #else
       return GRUB_ERR_BUG;
 #endif
+    }
+  else
+    {
+      return grub_error (GRUB_ERR_BUG, N_("unknown dynamic launch boot type: %d"), slparams->boot_type);
     }
 
   grub_memcpy (v_addr, skl_module, skl_size);

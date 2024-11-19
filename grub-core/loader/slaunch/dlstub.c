@@ -41,7 +41,7 @@ void dl_entry (grub_uint64_t dl_ctx)
 {
   struct grub_slr_bl_context *bl_ctx = (struct grub_slr_bl_context *)(grub_addr_t)dl_ctx;
   struct grub_slaunch_params *slparams = (struct grub_slaunch_params *)(grub_addr_t)bl_ctx->context;
-  struct grub_relocator32_state state;
+  struct grub_relocator32_state state = {0};
   grub_err_t err;
 
   state.edi = slparams->platform_type;

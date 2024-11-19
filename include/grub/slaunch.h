@@ -42,6 +42,7 @@ struct linux_kernel_params;
 struct linux_i386_kernel_header;
 struct grub_relocator;
 struct grub_efi_loaded_image;
+struct grub_slr_entry_hdr;
 typedef struct grub_efi_loaded_image grub_efi_loaded_image_t;
 
 struct grub_slaunch_params

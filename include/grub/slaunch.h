@@ -79,6 +79,16 @@ struct grub_slaunch_params
   grub_uint32_t dce_size;
   grub_uint64_t tpm_evt_log_base;
   grub_uint32_t tpm_evt_log_size;
+
+  /*
+   * Can be NULL.  Called twice: when starting to add standard SLRT entries and
+   * after adding them.  Should return the number of entries added by the hook
+   * or a negative value on failure.
+   */
+  int (*fill_policy_hook)(int is_start, int available_entries,
+                          struct grub_slr_policy_entry *next_entry, void *data);
+  /* Data passed to fill_policy_hook. */
+  void *fill_policy_hook_data;
 };
 
 struct grub_efi_info

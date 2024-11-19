@@ -244,7 +244,7 @@ grub_skl_prepare_bootloader_data (struct grub_slaunch_params *slparams)
   /* Setup the DRTM log info */
   grub_setup_slrt_log_info (slparams);
 
-  /* Final move of staging inforation into the actual SLRT */
+  /* Final move of staging information into the actual SLRT */
   grub_setup_slr_table (slparams, (struct grub_slr_entry_hdr *)&slr_amd_info_staging);
 
   return GRUB_ERR_NONE;

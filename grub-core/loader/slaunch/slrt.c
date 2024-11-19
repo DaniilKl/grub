@@ -62,13 +62,14 @@ grub_setup_slrt_policy (struct grub_slaunch_params *slparams,
                         struct grub_slr_policy_entry *platform_entry)
 {
   struct linux_kernel_params *boot_params = slparams->boot_params;
-  struct grub_efi_info *efi_info;
+  struct grub_efi_info *efi_info = NULL;
   grub_uint64_t hi_val;
   int i = 0;
 
   /* A bit of work to extract the v2.08 EFI info from the linux params */
-  efi_info = (struct grub_efi_info *)((grub_uint8_t *)&(boot_params->v0208)
-                                       + 2*sizeof(grub_uint32_t));
+  if (boot_params != NULL)
+    efi_info = (struct grub_efi_info *)((grub_uint8_t *)&(boot_params->v0208)
+                                         + 2*sizeof(grub_uint32_t));
 
   /* the SLR table should be measured too, at least parts of it */
   slr_policy_staging->policy_entries[i].pcr = 18;
@@ -78,15 +79,20 @@ grub_setup_slrt_policy (struct grub_slaunch_params *slparams,
   grub_strcpy (slr_policy_staging->policy_entries[i].evt_info, "Measured SLR Table");
   i++;
 
-  /* boot params have everything needed to setup policy except OS2MLE data */
-  slr_policy_staging->policy_entries[i].pcr = 18;
-  slr_policy_staging->policy_entries[i].entity_type = GRUB_SLR_ET_BOOT_PARAMS;
-  slr_policy_staging->policy_entries[i].entity = (grub_uint64_t)(grub_addr_t)boot_params;
-  slr_policy_staging->policy_entries[i].size = GRUB_PAGE_SIZE;
-  grub_strcpy (slr_policy_staging->policy_entries[i].evt_info, "Measured boot parameters");
+  if (boot_params != NULL)
+    {
+      /* boot params have everything needed to setup policy except OS2MLE data */
+      slr_policy_staging->policy_entries[i].pcr = 18;
+      slr_policy_staging->policy_entries[i].entity_type = GRUB_SLR_ET_BOOT_PARAMS;
+      slr_policy_staging->policy_entries[i].entity = (grub_uint64_t)(grub_addr_t)boot_params;
+      slr_policy_staging->policy_entries[i].size = GRUB_PAGE_SIZE;
+      grub_strcpy (slr_policy_staging->policy_entries[i].evt_info, "Measured boot parameters");
+    }
+  else
+    slr_policy_staging->policy_entries[i].entity_type = GRUB_SLR_ET_UNUSED;
   i++;
 
-  if (boot_params->setup_data)
+  if (boot_params != NULL && boot_params->setup_data)
     {
       slr_policy_staging->policy_entries[i].pcr = 18;
       slr_policy_staging->policy_entries[i].entity_type = GRUB_SLR_ET_SETUP_DATA;
@@ -98,7 +104,7 @@ grub_setup_slrt_policy (struct grub_slaunch_params *slparams,
       slr_policy_staging->policy_entries[i].entity_type = GRUB_SLR_ET_UNUSED;
   i++;
 
-  if (boot_params->cmd_line_ptr)
+  if (boot_params != NULL && boot_params->cmd_line_ptr)
     {
       slr_policy_staging->policy_entries[i].pcr = 18;
       slr_policy_staging->policy_entries[i].entity_type = GRUB_SLR_ET_CMDLINE;
@@ -112,7 +118,7 @@ grub_setup_slrt_policy (struct grub_slaunch_params *slparams,
       slr_policy_staging->policy_entries[i].entity_type = GRUB_SLR_ET_UNUSED;
   i++;
 
-  if (!grub_memcmp(&efi_info->efi_signature, "EL64", sizeof(grub_uint32_t)))
+  if (efi_info != NULL && !grub_memcmp(&efi_info->efi_signature, "EL64", sizeof(grub_uint32_t)))
     {
       slr_policy_staging->policy_entries[i].pcr = 18;
       slr_policy_staging->policy_entries[i].entity_type = GRUB_SLR_ET_UEFI_MEMMAP;
@@ -126,7 +132,7 @@ grub_setup_slrt_policy (struct grub_slaunch_params *slparams,
       slr_policy_staging->policy_entries[i].entity_type = GRUB_SLR_ET_UNUSED;
   i++;
 
-  if (boot_params->ramdisk_image)
+  if (boot_params != NULL && boot_params->ramdisk_image)
     {
       slr_policy_staging->policy_entries[i].pcr = 17;
       slr_policy_staging->policy_entries[i].entity_type = GRUB_SLR_ET_RAMDISK;

@@ -43,6 +43,7 @@ struct linux_i386_kernel_header;
 struct grub_relocator;
 struct grub_efi_loaded_image;
 struct grub_slr_entry_hdr;
+struct grub_slr_policy_entry;
 typedef struct grub_efi_loaded_image grub_efi_loaded_image_t;
 
 struct grub_slaunch_params
@@ -69,6 +70,15 @@ struct grub_slaunch_params
   grub_uint32_t dce_size;
   grub_uint64_t tpm_evt_log_base;
   grub_uint32_t tpm_evt_log_size;
+
+  /*
+   * Can be NULL.  Called twice: when starting to add standard SLRT entries and
+   * after adding them.  Should returns the number of entries added by the hook.
+   */
+  int (*fill_policy_hook)(int is_start,
+                          struct grub_slr_policy_entry *next_entry, void *data);
+  /* Data passed to fill_policy_hook. */
+  void *fill_policy_hook_data;
 };
 
 struct grub_efi_info

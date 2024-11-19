@@ -30,7 +30,7 @@
 #include <grub/i386/mmio.h>
 #include <grub/i386/txt.h>
 
-#define SLR_MAX_POLICY_ENTRIES		7
+#define SLR_MAX_POLICY_ENTRIES		16
 
 /* Area to collect and build SLR Table information */
 static grub_uint8_t slr_policy_buf[GRUB_PAGE_SIZE] = {0};
@@ -65,11 +65,29 @@ grub_setup_slrt_policy (struct grub_slaunch_params *slparams,
   struct grub_efi_info *efi_info = NULL;
   grub_uint64_t hi_val;
   int i = 0;
+  int added;
 
   /* A bit of work to extract the v2.08 EFI info from the linux params */
   if (boot_params != NULL)
     efi_info = (struct grub_efi_info *)((grub_uint8_t *)&(boot_params->v0208)
                                          + 2*sizeof(grub_uint32_t));
+
+  if (slparams->fill_policy_hook)
+    {
+      added = slparams->fill_policy_hook (1, SLR_MAX_POLICY_ENTRIES - i,
+                                          &slr_policy_staging->policy_entries[i],
+                                          slparams->fill_policy_hook_data);
+      if (added < 0)
+        return grub_error (GRUB_ERR_OUT_OF_RANGE,
+                           N_("failed to prepend policy entries"));
+
+      i += added;
+    }
+
+  /* The code below always adds 7 entries. */
+  if (SLR_MAX_POLICY_ENTRIES - i < 7)
+    return grub_error (GRUB_ERR_OUT_OF_RANGE,
+                       N_("not enough policy entry slots"));
 
   /* the SLR table should be measured too, at least parts of it */
   slr_policy_staging->policy_entries[i].pcr = 18;
@@ -159,6 +177,23 @@ grub_setup_slrt_policy (struct grub_slaunch_params *slparams,
     }
   else
     slr_policy_staging->policy_entries[i].entity_type = GRUB_SLR_ET_UNUSED;
+  i++;
+
+  if (slparams->fill_policy_hook)
+    {
+      added = slparams->fill_policy_hook (0, SLR_MAX_POLICY_ENTRIES - i,
+                                          &slr_policy_staging->policy_entries[i],
+                                          slparams->fill_policy_hook_data);
+      if (added < 0)
+        return grub_error (GRUB_ERR_OUT_OF_RANGE,
+                           N_("failed to append policy entries"));
+
+      i += added;
+    }
+
+  /* Mark any unused entries with the appropriate type */
+  for (; i < SLR_MAX_POLICY_ENTRIES; ++i)
+      slr_policy_staging->policy_entries[i].entity_type = GRUB_SLR_ET_UNUSED;
 
   return GRUB_ERR_NONE;
 }

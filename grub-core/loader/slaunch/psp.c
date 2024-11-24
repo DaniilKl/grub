@@ -224,19 +224,15 @@ init_drtm_device (grub_pci_device_t dev)
   grub_pci_address_t pci_cmd_addr, pin_addr, lat_addr;
 
   /* Enable memory space access for PSP */
-  pci_cmd = 0;
   pci_cmd_addr = grub_pci_make_address (dev, GRUB_PCI_REG_COMMAND);
-  pci_cmd = grub_pci_read_word (pci_cmd_addr);
-  pci_cmd |= 0x2;
+  pci_cmd = grub_pci_read_word (pci_cmd_addr) | 0x2;
   grub_pci_write_word (pci_cmd_addr, pci_cmd);
 
   /* Enable PCI interrupts */
-  pin = 0;
   pin_addr = grub_pci_make_address (dev, GRUB_PCI_REG_IRQ_PIN);
   pin = grub_pci_read_byte (pin_addr);
   if (pin)
     {
-      pci_cmd = 0;
       pci_cmd = grub_pci_read_word (pci_cmd_addr);
       if (pci_cmd & 0x400)
 	{
@@ -246,13 +242,10 @@ init_drtm_device (grub_pci_device_t dev)
     }
 
   /* Set PSP at bus master */
-  pci_cmd = 0;
-  pci_cmd = grub_pci_read_word (pci_cmd_addr);
-  pci_cmd |= 0x4;
+  pci_cmd = grub_pci_read_word (pci_cmd_addr) | 0x4;
   grub_pci_write_word (pci_cmd_addr, pci_cmd);
 
   /* Set PCI latency timer */
-  lat = 0;
   lat_addr = grub_pci_make_address (dev, GRUB_PCI_REG_LAT_TIMER);
   lat = grub_pci_read_byte (lat_addr);
   if (lat < 16)

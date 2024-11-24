@@ -251,7 +251,7 @@ init_drtm_device (grub_pci_device_t dev)
   pci_cmd |= 0x4;
   grub_pci_write_word (pci_cmd_addr, pci_cmd);
 
-  /* SET PCI latency timer */
+  /* Set PCI latency timer */
   lat = 0;
   lat_addr = grub_pci_make_address (dev, GRUB_PCI_REG_LAT_TIMER);
   lat = grub_pci_read_byte (lat_addr);

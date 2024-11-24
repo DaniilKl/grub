@@ -153,7 +153,7 @@ get_psp_bar_addr (void)
   return (grub_uint64_t) pspbaselo;
 }
 
-static const struct pci_psp_device *
+static bool
 is_drtm_device (grub_uint16_t vendor_id, grub_uint16_t dev_id)
 {
   grub_uint32_t max_psp_devs = sizeof (psp_devs_list) / sizeof (psp_devs_list[0]);
@@ -174,10 +174,10 @@ is_drtm_device (grub_uint16_t vendor_id, grub_uint16_t dev_id)
     {
       grub_dprintf ("slaunch", "DRTM: AMD SP device (PCI info: 0x%04x, 0x%04x) does not have PSP\n",
 		    psp->vendor_id, psp->dev_id);
-      psp = NULL;
+      return false;
     }
 
-  return psp;
+  return true;
 }
 
 grub_err_t
@@ -186,7 +186,6 @@ grub_psp_discover (void)
   grub_pci_device_t dev;
   grub_pci_address_t addr;
   grub_uint16_t vendor_id, dev_id;
-  const struct pci_psp_device *psp = NULL;
   grub_uint64_t bar2_addr = 0;
 
   for (dev.bus = 0; dev.bus < GRUB_PCI_NUM_BUS; dev.bus++)
@@ -199,15 +198,13 @@ grub_psp_discover (void)
 	      vendor_id = grub_pci_read_word (addr);
 	      addr = grub_pci_make_address (dev, 2);
 	      dev_id = grub_pci_read_word (addr);
-	      psp = is_drtm_device (vendor_id, dev_id);
-	      if (psp)
+	      if (is_drtm_device (vendor_id, dev_id))
 		goto psp_found;
 	    }
 	}
     }
 
-  if (!psp)
-    return grub_error (GRUB_ERR_BAD_DEVICE, N_("DRTM: failed to find PSP\n"));
+  return grub_error (GRUB_ERR_BAD_DEVICE, N_("DRTM: failed to find PSP\n"));
 
 psp_found:
   init_drtm_device (dev);

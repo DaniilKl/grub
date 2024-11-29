@@ -381,7 +381,7 @@ grub_drtm_setup_tmrs (grub_uint64_t tmr_end)
   grub_uint32_t status = 0;
 
   tmr_count = grub_divmod64 (tmr_end, drtm_capability.tmr_alignment, &rem);
-  if (rem == 1)
+  if (rem != 0)
     tmr_count++;
 
   if (tmr_count > GRUB_UINT_MAX)

@@ -208,9 +208,9 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
 fail:
 
   if (slmem && slmem_size)
-    grub_efi_free_pages ((grub_addr_t)slmem, slmem_size);
+    grub_efi_free_pages ((grub_addr_t)slmem, GRUB_EFI_BYTES_TO_PAGES(slmem_size));
 
-  grub_efi_free_pages ((grub_addr_t)addr, slparams->mle_ptab_size);
+  grub_efi_free_pages ((grub_addr_t)addr, GRUB_EFI_BYTES_TO_PAGES(slparams->mle_ptab_size));
 
   return err;
 }
@@ -280,7 +280,7 @@ grub_sl_efi_skinit_setup (struct grub_slaunch_params *slparams, void *kernel_add
   return GRUB_ERR_NONE;
 
 fail:
-  grub_efi_free_pages ((grub_addr_t)logmem, GRUB_EFI_SLAUNCH_TPM_EVT_LOG_SIZE);
+  grub_efi_free_pages ((grub_addr_t)logmem, GRUB_EFI_BYTES_TO_PAGES(GRUB_EFI_SLAUNCH_TPM_EVT_LOG_SIZE));
 
   return err;
 }

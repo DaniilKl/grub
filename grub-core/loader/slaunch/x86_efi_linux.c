@@ -100,14 +100,14 @@ sl_efi_txt_setup_slmem (struct grub_slaunch_params *slparams,
 
   grub_memset (slmem, 0, slmem_size);
 
-  slparams->slr_table_base = (grub_uint64_t)slmem;
+  slparams->slr_table_base = (grub_addr_t)slmem;
   slparams->slr_table_size = GRUB_EFI_PAGE_SIZE;
   slparams->slr_table_mem = slmem;
 
-  slparams->tpm_evt_log_base = (grub_uint64_t)(slmem + GRUB_EFI_PAGE_SIZE);
+  slparams->tpm_evt_log_base = (grub_addr_t)(slmem + GRUB_EFI_PAGE_SIZE);
   slparams->tpm_evt_log_size = GRUB_EFI_SLAUNCH_TPM_EVT_LOG_SIZE;
 
-  slparams->ap_wake_block = (grub_uint32_t)(grub_uint64_t)(slmem + GRUB_EFI_PAGE_SIZE + GRUB_EFI_SLAUNCH_TPM_EVT_LOG_SIZE);
+  slparams->ap_wake_block = (grub_uint32_t)(grub_addr_t)(slmem + GRUB_EFI_PAGE_SIZE + GRUB_EFI_SLAUNCH_TPM_EVT_LOG_SIZE);
   slparams->ap_wake_block_size = GRUB_EFI_MLE_AP_WAKE_BLOCK_SIZE;
 
   *slmem_size_out = slmem_size;
@@ -119,7 +119,7 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
                        grub_efi_loaded_image_t *loaded_image)
 {
   struct linux_kernel_params *lh = (struct linux_kernel_params *)kernel_addr;
-  grub_uint64_t image_base = (grub_uint64_t)loaded_image->image_base;
+  grub_addr_t image_base = (grub_addr_t)loaded_image->image_base;
   grub_efi_uint64_t image_size = loaded_image->image_size;
   grub_efi_physical_address_t requested;
   grub_ssize_t start;
@@ -137,7 +137,7 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
    * in the OSMLE data and SLRT.
    */
   slparams->boot_params = &boot_params;
-  slparams->boot_params_base = (grub_uint64_t)&boot_params;
+  slparams->boot_params_base = (grub_addr_t)&boot_params;
 
   /*
    * Note that while the boot params on the zero page are not used or updated during a Linux
@@ -163,7 +163,7 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
     }
 
   slparams->mle_ptab_mem = addr;
-  slparams->mle_ptab_target = (grub_uint64_t)addr;
+  slparams->mle_ptab_target = (grub_addr_t)addr;
 
   /*
    * For the MLE, skip the zero page and startup section of the binary. The MLE
@@ -220,7 +220,7 @@ grub_sl_efi_skinit_setup (struct grub_slaunch_params *slparams, void *kernel_add
                           grub_efi_loaded_image_t *loaded_image)
 {
   struct linux_kernel_params *lh = (struct linux_kernel_params *)kernel_addr;
-  grub_uint64_t image_base = (grub_uint64_t)loaded_image->image_base;
+  grub_addr_t image_base = (grub_addr_t)loaded_image->image_base;
   grub_efi_uint64_t image_size = loaded_image->image_size;
   grub_uint8_t *logmem;
   grub_addr_t max_addr;
@@ -232,7 +232,7 @@ grub_sl_efi_skinit_setup (struct grub_slaunch_params *slparams, void *kernel_add
 
   /* See comment in TXT setup function grub_efi_slaunch_setup_txt() */
   slparams->boot_params = &boot_params;
-  slparams->boot_params_base = (grub_uint64_t)&boot_params;
+  slparams->boot_params_base = (grub_addr_t)&boot_params;
 
   start = (lh->setup_sects + 1) * 512;
 
@@ -254,7 +254,7 @@ grub_sl_efi_skinit_setup (struct grub_slaunch_params *slparams, void *kernel_add
     }
 
   grub_memset (logmem, 0, GRUB_EFI_SLAUNCH_TPM_EVT_LOG_SIZE);
-  slparams->tpm_evt_log_base = (grub_uint64_t)logmem;
+  slparams->tpm_evt_log_base = (grub_addr_t)logmem;
   slparams->tpm_evt_log_size = GRUB_EFI_SLAUNCH_TPM_EVT_LOG_SIZE;
 
   err = sl_efi_locate_mle_offset (slparams, kernel_addr, start);

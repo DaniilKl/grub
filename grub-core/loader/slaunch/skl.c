@@ -98,9 +98,9 @@ grub_skl_set_module (const void *skl_base, grub_uint32_t size)
   if (module->skl_info_offset > module->length - sizeof (info->uuid))
     {
       grub_dprintf ("slaunch",
-                    "Possible SKL module doesn't measure info: %u > %u\n",
+                    "Possible SKL module doesn't measure info: %u > %lu\n",
                     module->skl_info_offset,
-                    module->length - sizeof (info->uuid));
+                    (unsigned long)(module->length - sizeof (info->uuid)));
       return 0;
     }
 

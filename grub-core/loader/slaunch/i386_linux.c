@@ -41,6 +41,7 @@ grub_sl_find_kernel_info (struct grub_slaunch_params *slparams, grub_file_t kern
 
 {
   struct linux_kernel_info *linux_info;
+  struct grub_txt_mle_header mle_hdr;
 
   /* Not a Secure Launch, do nothing */
   if (grub_slaunch_platform_type () == SLP_NONE)
@@ -110,6 +111,18 @@ grub_sl_find_kernel_info (struct grub_slaunch_params *slparams, grub_file_t kern
 
   slparams->mle_header_offset = grub_le_to_cpu32 (linux_info->mle_header_offset);
 
+  if (grub_file_seek (kernel_file, slparams->mle_header_offset + real_size +
+                      GRUB_DISK_SECTOR_SIZE) == ((grub_off_t) -1))
+    goto fail;
+  if (grub_file_read (kernel_file, &mle_hdr, sizeof (mle_hdr)) != sizeof (mle_hdr))
+    {
+      if (!grub_errno)
+        grub_error (GRUB_ERR_BAD_OS, N_("premature end of kernel file"));
+      goto fail;
+    }
+
+  slparams->mle_entry = mle_hdr.entry_point;
+
   return GRUB_ERR_NONE;
 
 fail:
@@ -159,7 +172,6 @@ grub_sl_txt_setup_linux (struct grub_slaunch_params *slparams, struct grub_reloc
   *prot_mode_mem = (char *)*prot_mode_mem + slparams->mle_ptab_size;
   *prot_mode_target += slparams->mle_ptab_size;
 
-  slparams->mle_mem = *prot_mode_mem;
   slparams->mle_start = *prot_mode_target;
   slparams->mle_size = prot_size;
 
@@ -232,7 +244,6 @@ grub_sl_skinit_setup_linux (struct grub_slaunch_params *slparams, struct grub_re
   /* Zero out memory to get stable MLE measurements. */
   grub_memset (prot_mode_mem, 0, total_size);
 
-  slparams->mle_mem = prot_mode_mem;
   slparams->mle_start = prot_mode_target;
   slparams->mle_size = prot_file_size;
 

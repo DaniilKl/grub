@@ -201,9 +201,7 @@ grub_setup_slrt_policy (struct grub_slaunch_params *slparams,
 void
 grub_setup_slrt_dl_info (struct grub_slaunch_params *slparams)
 {
-  struct grub_txt_mle_header *mle_header;
-
-  mle_header = (struct grub_txt_mle_header *)((grub_addr_t) slparams->mle_mem + slparams->mle_header_offset);
+  grub_dprintf ("slaunch", "mle entry point: 0x%x\n", slparams->mle_entry);
 
   /* Setup DL entry point, DCE and DLME information */
   slr_dl_info_staging.bl_context.bootloader = GRUB_SLR_BOOTLOADER_GRUB;
@@ -211,7 +209,7 @@ grub_setup_slrt_dl_info (struct grub_slaunch_params *slparams)
   slr_dl_info_staging.dl_handler = (grub_addr_t)dl_entry_trampoline;
   slr_dl_info_staging.dlme_size = slparams->mle_size;
   slr_dl_info_staging.dlme_base = slparams->mle_start;
-  slr_dl_info_staging.dlme_entry = mle_header->entry_point;
+  slr_dl_info_staging.dlme_entry = slparams->mle_entry;
   slr_dl_info_staging.dce_base = slparams->dce_base;
   slr_dl_info_staging.dce_size = slparams->dce_size;
 }

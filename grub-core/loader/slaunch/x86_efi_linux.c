@@ -64,6 +64,7 @@ sl_efi_locate_mle_offset (struct grub_slaunch_params *slparams,
 {
   struct linux_kernel_params *lh = (struct linux_kernel_params *)kernel_addr;
   struct linux_kernel_info kernel_info;
+  struct grub_txt_mle_header *mle_hdr;
 
   /* Locate the MLE header offset in kernel_info section */
   grub_memcpy ((void *)&kernel_info,
@@ -74,6 +75,9 @@ sl_efi_locate_mle_offset (struct grub_slaunch_params *slparams,
     return grub_error (GRUB_ERR_BAD_OS, N_("not slaunch kernel: lack of mle_header_offset"));
 
   slparams->mle_header_offset = grub_le_to_cpu32 (kernel_info.mle_header_offset);
+
+  mle_hdr = (struct grub_txt_mle_header *)((grub_addr_t)kernel_addr + slparams->mle_header_offset);
+  slparams->mle_entry = mle_hdr->entry_point;
 
   return GRUB_ERR_NONE;
 }
@@ -171,7 +175,6 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
    * header is in the startup section before the protected mode piece begins.
    * In legacy world this part of the image would have been stripped off.
    */
-  slparams->mle_mem = image_base + start;
   slparams->mle_start = image_base + start;
   slparams->mle_size = image_size - start;
 
@@ -234,7 +237,6 @@ grub_sl_efi_skinit_setup (struct grub_slaunch_params *slparams, void *kernel_add
   start = (lh->setup_sects + 1) * 512;
 
   /* See comment in TXT setup function grub_efi_slaunch_setup_txt() */
-  slparams->mle_mem = image_base + start;
   slparams->mle_start = image_base + start;
   slparams->mle_size = image_size - start;
 

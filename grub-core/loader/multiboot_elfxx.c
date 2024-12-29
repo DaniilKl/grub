@@ -176,7 +176,6 @@ CONCAT(grub_multiboot_load_elf, XX) (mbi_load_data_t *mld)
       if (grub_slaunch_platform_type () != SLP_NONE)
         {
           slparams->mle_start = mld->load_base_addr;
-          slparams->mle_mem = source;
           slparams->mle_ptab_size = 0;
         }
 
@@ -298,6 +297,7 @@ CONCAT(grub_multiboot_load_elf, XX) (mbi_load_data_t *mld)
 
       slparams->mle_header_offset = mle_hdr_offset;
       slparams->mle_size = mle_hdr->mle_end - mle_hdr->mle_start;
+      slparams->mle_entry = mle_hdr->entry_point;
     }
 #endif
 

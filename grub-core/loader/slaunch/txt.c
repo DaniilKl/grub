@@ -978,10 +978,13 @@ grub_txt_boot_prepare (struct grub_slaunch_params *slparams)
   if (err != GRUB_ERR_NONE)
     return err;
 
-  /* Update the MLE header. */
+  /* Update the MLE header if it's part of the memory image . */
   mle_header = (struct grub_txt_mle_header *)(grub_addr_t) (slparams->mle_start + slparams->mle_header_offset);
-  mle_header->first_valid_page = 0;
-  mle_header->mle_end = slparams->mle_size;
+  if (!grub_memcmp (mle_header->uuid, GRUB_TXT_MLE_UUID, 16))
+    {
+      mle_header->first_valid_page = 0;
+      mle_header->mle_end = slparams->mle_size;
+    }
 
   slparams->dce_base = (grub_uint32_t)(grub_addr_t) sinit_base;
   slparams->dce_size = sinit_base->size * 4;

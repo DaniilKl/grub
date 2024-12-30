@@ -60,23 +60,43 @@ sl_efi_install_slr_table (struct grub_slaunch_params *slparams)
 
 static grub_err_t
 sl_efi_locate_mle_offset (struct grub_slaunch_params *slparams,
-                          void *kernel_addr, grub_ssize_t kernel_start)
+                          void *kernel_addr, grub_ssize_t kernel_start,
+                          bool is_linux)
 {
   struct linux_kernel_params *lh = (struct linux_kernel_params *)kernel_addr;
   struct linux_kernel_info kernel_info;
   struct grub_txt_mle_header *mle_hdr;
+  grub_uint32_t mle_hdr_offset;
 
-  /* Locate the MLE header offset in kernel_info section */
-  grub_memcpy ((void *)&kernel_info,
-               (char *)kernel_addr + kernel_start + grub_le_to_cpu32 (lh->kernel_info_offset),
-               sizeof (struct linux_kernel_info));
+  if (is_linux)
+    {
+      /* Locate the MLE header offset in kernel_info section */
+      grub_memcpy ((void *)&kernel_info,
+                   (char *)kernel_addr + kernel_start + grub_le_to_cpu32 (lh->kernel_info_offset),
+                   sizeof (struct linux_kernel_info));
 
-  if (OFFSET_OF (mle_header_offset, &kernel_info) >= grub_le_to_cpu32 (kernel_info.size))
-    return grub_error (GRUB_ERR_BAD_OS, N_("not an slaunch kernel: lack of mle_header_offset"));
+      if (OFFSET_OF (mle_header_offset, &kernel_info) >= grub_le_to_cpu32 (kernel_info.size))
+        return grub_error (GRUB_ERR_BAD_OS, N_("not an slaunch kernel: lack of mle_header_offset"));
 
-  slparams->mle_header_offset = grub_le_to_cpu32 (kernel_info.mle_header_offset);
+      mle_hdr_offset = grub_le_to_cpu32 (kernel_info.mle_header_offset);
+      mle_hdr = (struct grub_txt_mle_header *)((grub_addr_t)kernel_addr + slparams->mle_header_offset);
+    }
+  else
+    {
+      for (mle_hdr_offset = 0; mle_hdr_offset < 0x1000; mle_hdr_offset += 16)
+        {
+          mle_hdr = (struct grub_txt_mle_header *)((grub_addr_t)kernel_addr + mle_hdr_offset);
+          if (!grub_memcmp (mle_hdr->uuid, GRUB_TXT_MLE_UUID, 16))
+            break;
+        }
 
-  mle_hdr = (struct grub_txt_mle_header *)((grub_addr_t)kernel_addr + slparams->mle_header_offset);
+      if (mle_hdr_offset >= 0x1000)
+        {
+          return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("not an slaunch kernel: no MLE header found"));
+        }
+    }
+
+  slparams->mle_header_offset = mle_hdr_offset;
   slparams->mle_entry = mle_hdr->entry_point;
 
   return GRUB_ERR_NONE;
@@ -116,13 +136,13 @@ sl_efi_txt_setup_slmem (struct grub_slaunch_params *slparams,
 
 grub_err_t
 grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
-                       grub_efi_loaded_image_t *loaded_image)
+                       grub_efi_loaded_image_t *loaded_image, bool is_linux)
 {
   struct linux_kernel_params *lh = (struct linux_kernel_params *)kernel_addr;
   grub_addr_t image_base = (grub_addr_t)loaded_image->image_base;
   grub_efi_uint64_t image_size = loaded_image->image_size;
   grub_efi_physical_address_t requested;
-  grub_ssize_t start;
+  grub_ssize_t start = 0;
   grub_err_t err;
   void *addr;
   void *slmem = NULL;
@@ -131,20 +151,24 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
   slparams->boot_type = GRUB_SL_BOOT_TYPE_EFI;
   slparams->platform_type = grub_slaunch_platform_type ();
 
-  /*
-   * Dummy empty boot params structure for now. EFI stub will create a boot params
-   * and populate it. The SL code in EFI stub will update the boot params structure
-   * in the OSMLE data and SLRT.
-   */
-  slparams->boot_params = &boot_params;
-  slparams->boot_params_base = (grub_addr_t)&boot_params;
+  if (is_linux)
+    {
+      /*
+       * Dummy empty boot params structure for now. EFI stub will create a boot
+       * params and populate it. The SL code in EFI stub will update the boot
+       * params structure in the OSMLE data and SLRT.
+       */
+      slparams->boot_params = &boot_params;
+      slparams->boot_params_base = (grub_addr_t)&boot_params;
 
-  /*
-   * Note that while the boot params on the zero page are not used or updated during a Linux
-   * UEFI boot through the PE header, the values placed there in the bzImage during the build
-   * are still valid and can be treated as boot params for certain things.
-   */
-  start = (lh->setup_sects + 1) * 512;
+      /*
+       * Note that while the boot params on the zero page are not used or
+       * updated during a Linux UEFI boot through the PE header, the values
+       * placed there in the bzImage during the build are still valid and can
+       * be treated as boot params for certain things.
+       */
+      start = (lh->setup_sects + 1) * 512;
+    }
 
   /* Allocate page tables for TXT just in front of the kernel image */
   slparams->mle_ptab_size = grub_txt_get_mle_ptab_size (image_size);
@@ -190,7 +214,7 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
       goto fail;
     }
 
-  err = sl_efi_locate_mle_offset (slparams, kernel_addr, start);
+  err = sl_efi_locate_mle_offset (slparams, kernel_addr, start, is_linux);
   if (err != GRUB_ERR_NONE)
     goto fail;
 
@@ -217,26 +241,29 @@ fail:
 
 grub_err_t
 grub_sl_efi_skinit_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
-                          grub_efi_loaded_image_t *loaded_image)
+                          grub_efi_loaded_image_t *loaded_image, bool is_linux)
 {
   struct linux_kernel_params *lh = (struct linux_kernel_params *)kernel_addr;
   grub_addr_t image_base = (grub_addr_t)loaded_image->image_base;
   grub_efi_uint64_t image_size = loaded_image->image_size;
   grub_uint8_t *logmem;
   grub_addr_t max_addr;
-  grub_ssize_t start;
+  grub_ssize_t start = 0;
   grub_err_t err;
 
   slparams->boot_type = GRUB_SL_BOOT_TYPE_EFI;
   slparams->platform_type = grub_slaunch_platform_type();
 
-  /* See comment in TXT setup function grub_efi_slaunch_setup_txt() */
-  slparams->boot_params = &boot_params;
-  slparams->boot_params_base = (grub_addr_t)&boot_params;
+  /* See comment in TXT setup function grub_sl_efi_txt_setup () */
+  if (is_linux)
+    {
+      slparams->boot_params = &boot_params;
+      slparams->boot_params_base = (grub_addr_t)&boot_params;
 
-  start = (lh->setup_sects + 1) * 512;
+      start = (lh->setup_sects + 1) * 512;
+    }
 
-  /* See comment in TXT setup function grub_efi_slaunch_setup_txt() */
+  /* See comment in TXT setup function grub_sl_efi_txt_setup () */
   slparams->mle_start = image_base + start;
   slparams->mle_size = image_size - start;
 
@@ -257,7 +284,7 @@ grub_sl_efi_skinit_setup (struct grub_slaunch_params *slparams, void *kernel_add
   slparams->tpm_evt_log_base = (grub_addr_t)logmem;
   slparams->tpm_evt_log_size = GRUB_EFI_SLAUNCH_TPM_EVT_LOG_SIZE;
 
-  err = sl_efi_locate_mle_offset (slparams, kernel_addr, start);
+  err = sl_efi_locate_mle_offset (slparams, kernel_addr, start, is_linux);
   if (err != GRUB_ERR_NONE)
     goto fail;
 

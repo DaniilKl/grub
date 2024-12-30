@@ -36,6 +36,8 @@
 #include <grub/command.h>
 #include <grub/i18n.h>
 #include <grub/net.h>
+#include <grub/slaunch.h>
+#include <grub/time.h>
 #if defined (__i386__) || defined (__x86_64__)
 #include <grub/macho.h>
 #include <grub/i386/macho.h>
@@ -45,12 +47,34 @@ GRUB_MOD_LICENSE ("GPLv3+");
 
 static grub_dl_t my_mod;
 
+static void *image_mem;
+static grub_efi_physical_address_t image_address;
+static grub_efi_uintn_t image_pages;
+
+static struct grub_slaunch_params slparams = {0};
+
+static void
+free_image (void)
+{
+  if (image_address)
+    {
+      grub_efi_system_table->boot_services->free_pages (image_address,
+                                                        image_pages);
+
+      image_mem = NULL;
+      image_address = 0;
+      image_pages = 0;
+    }
+}
+
 static grub_err_t
 grub_chainloader_unload (void *context)
 {
   grub_efi_handle_t image_handle = (grub_efi_handle_t) context;
   grub_efi_loaded_image_t *loaded_image;
   grub_efi_boot_services_t *b;
+
+  free_image ();
 
   loaded_image = grub_efi_get_loaded_image (image_handle);
   if (loaded_image != NULL)
@@ -71,6 +95,19 @@ grub_chainloader_boot (void *context)
   grub_efi_status_t status;
   grub_efi_uintn_t exit_data_size;
   grub_efi_char16_t *exit_data = NULL;
+  grub_err_t err;
+  grub_efi_loaded_image_t *loaded_image;
+
+  loaded_image = grub_efi_get_loaded_image (image_handle);
+  if (loaded_image == NULL)
+    return grub_error (GRUB_ERR_BUG, "Couldn't query EFI loaded image");
+
+  if (grub_slaunch_platform_type () == SLP_INTEL_TXT)
+    {
+      err = grub_sl_efi_txt_setup (&slparams, image_mem, loaded_image, /*is_linux=*/false);
+      if (err != GRUB_ERR_NONE)
+        return grub_error (err, "Secure Launch setup TXT failed");
+    }
 
   b = grub_efi_system_table->boot_services;
   status = b->start_image (image_handle, &exit_data_size, &exit_data);
@@ -209,6 +246,57 @@ make_file_path (grub_efi_device_path_t *dp, const char *filename)
 }
 
 static grub_err_t
+clear_unused_memory_below (grub_uint64_t limit)
+{
+  grub_efi_memory_descriptor_t *memory_map, *desc;
+  grub_efi_uintn_t memory_map_size, desc_size;
+  grub_efi_boot_services_t *b;
+  grub_efi_uint64_t total_cleared = 0;
+  int ret;
+
+  b = grub_efi_system_table->boot_services;
+
+  memory_map_size = grub_efi_find_mmap_size ();
+
+  memory_map = grub_malloc (memory_map_size);
+  if (!memory_map)
+    return GRUB_ERR_OUT_OF_MEMORY;
+
+  ret = grub_efi_get_memory_map (&memory_map_size, memory_map, NULL,
+                                 &desc_size, NULL);
+  if (ret < 1)
+    {
+      grub_free (memory_map);
+      return GRUB_ERR_BUG;
+    }
+
+  for (desc = memory_map;
+       (grub_addr_t)desc < ((grub_addr_t)memory_map + memory_map_size);
+       desc = (void *)((grub_uint8_t *)desc + desc_size))
+    {
+      grub_efi_uint64_t size = desc->num_pages << 12;
+
+      if (desc->type != GRUB_EFI_CONVENTIONAL_MEMORY ||
+          desc->physical_start >= limit)
+        continue;
+
+      if (desc->physical_start + size > limit)
+        size = limit - desc->physical_start;
+
+      grub_dprintf ("chain", "Clearing %lu bytes at 0x%lx...\n", size,
+                    desc->physical_start);
+      b->set_mem ((void *)desc->physical_start, size, 0x00);
+      total_cleared += size;
+    }
+
+  grub_free (memory_map);
+
+  grub_dprintf ("chain", "Cleared %llu bytes in total.\n",
+                (unsigned long long)total_cleared);
+  return GRUB_ERR_NONE;
+}
+
+static grub_err_t
 grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
 		      int argc, char *argv[])
 {
@@ -220,16 +308,15 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
   grub_efi_device_path_t *dp = NULL, *file_path = NULL;
   grub_efi_loaded_image_t *loaded_image;
   char *filename;
-  void *boot_image = 0;
   grub_efi_handle_t dev_handle = 0;
-  grub_efi_physical_address_t address = 0;
-  grub_efi_uintn_t pages = 0;
   grub_efi_char16_t *cmdline = NULL;
   grub_efi_handle_t image_handle = NULL;
 
   if (argc == 0)
     return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("filename expected"));
   filename = argv[0];
+
+  free_image ();
 
   grub_dl_ref (my_mod);
 
@@ -280,21 +367,21 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
 		  filename);
       goto fail;
     }
-  pages = (grub_efi_uintn_t) GRUB_EFI_BYTES_TO_PAGES (size);
+  image_pages = (grub_efi_uintn_t) GRUB_EFI_BYTES_TO_PAGES (size);
 
   status = b->allocate_pages (GRUB_EFI_ALLOCATE_ANY_PAGES,
 			      GRUB_EFI_LOADER_CODE,
-			      pages, &address);
+			      image_pages, &image_address);
   if (status != GRUB_EFI_SUCCESS)
     {
       grub_dprintf ("chain", "Failed to allocate %u pages\n",
-		    (unsigned int) pages);
+		    (unsigned int) image_pages);
       grub_error (GRUB_ERR_OUT_OF_MEMORY, N_("out of memory"));
       goto fail;
     }
 
-  boot_image = (void *) ((grub_addr_t) address);
-  if (grub_file_read (file, boot_image, size) != size)
+  image_mem = (void *) ((grub_addr_t) image_address);
+  if (grub_file_read (file, image_mem, size) != size)
     {
       if (grub_errno == GRUB_ERR_NONE)
 	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
@@ -303,10 +390,37 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
       goto fail;
     }
 
+  if (grub_slaunch_platform_type () != SLP_NONE)
+    {
+      grub_uint64_t before_time, after_time;
+      grub_err_t err;
+
+      /*
+       * Firmware doesn't necessarily zero area allocated for an EFI image
+       * before filling some of its subranges with data from a file.  This can
+       * leave areas not backed by a file holding arbitrary values.
+       *
+       * So clear all currently unused memory below 4 GiB to avoid DRTM
+       * measuring random data.
+       */
+
+      before_time = grub_get_time_ms ();
+      err = clear_unused_memory_below (1ULL << 32);
+      after_time = grub_get_time_ms ();
+      if (err != GRUB_ERR_NONE)
+        {
+          grub_dprintf ("chain", "Failed to clear unused memory < 4 GiB\n");
+          goto fail;
+        }
+
+      grub_dprintf ("chain", "Took %llu ms to clear the memory\n",
+                    (unsigned long long)(after_time - before_time));
+    }
+
 #if defined (__i386__) || defined (__x86_64__)
   if (size >= (grub_ssize_t) sizeof (struct grub_macho_fat_header))
     {
-      struct grub_macho_fat_header *head = boot_image;
+      struct grub_macho_fat_header *head = image_mem;
       if (head->magic
 	  == grub_cpu_to_le32_compile_time (GRUB_MACHO_FAT_EFI_MAGIC))
 	{
@@ -333,14 +447,14 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
 			  filename);
 	      goto fail;
 	    }
-	  boot_image = (char *) boot_image + grub_cpu_to_le32 (archs[i].offset);
+	  image_mem = (char *) image_mem + grub_cpu_to_le32 (archs[i].offset);
 	  size = grub_cpu_to_le32 (archs[i].size);
 	}
     }
 #endif
 
   status = b->load_image (0, grub_efi_image_handle, file_path,
-			  boot_image, size,
+			  image_mem, size,
 			  &image_handle);
   if (status != GRUB_EFI_SUCCESS)
     {
@@ -396,8 +510,9 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
   grub_file_close (file);
   grub_device_close (dev);
 
-  /* We're finished with the source image buffer and file path now. */
-  b->free_pages (address, pages);
+  /* We're typically finished with the source image buffer and file path here. */
+  if (grub_slaunch_platform_type () == SLP_NONE)
+    free_image ();
   grub_free (file_path);
 
   grub_loader_set_ex (grub_chainloader_boot, grub_chainloader_unload, image_handle, 0);
@@ -414,8 +529,7 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
   grub_free (cmdline);
   grub_free (file_path);
 
-  if (address)
-    b->free_pages (address, pages);
+  free_image ();
 
   if (image_handle != NULL)
     b->unload_image (image_handle);

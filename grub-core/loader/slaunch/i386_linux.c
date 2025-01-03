@@ -49,7 +49,7 @@ grub_sl_find_kernel_info (struct grub_slaunch_params *slparams, grub_file_t kern
 
   if (grub_le_to_cpu16 (lh->version) < 0x020f)
     {
-      grub_error (GRUB_ERR_BAD_OS, N_("not slaunch kernel: boot protocol too old"));
+      grub_error (GRUB_ERR_BAD_OS, N_("not an slaunch kernel: boot protocol too old"));
       goto fail;
     }
 
@@ -105,7 +105,7 @@ grub_sl_find_kernel_info (struct grub_slaunch_params *slparams, grub_file_t kern
   if (OFFSET_OF (mle_header_offset, linux_info) >= grub_le_to_cpu32 (linux_info->size))
     {
       if (!grub_errno)
-        grub_error (GRUB_ERR_BAD_OS, N_("not slaunch kernel: lack of mle_header_offset"));
+        grub_error (GRUB_ERR_BAD_OS, N_("not an slaunch kernel: lack of mle_header_offset"));
       goto fail;
     }
 

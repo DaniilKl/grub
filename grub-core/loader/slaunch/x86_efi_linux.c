@@ -72,7 +72,7 @@ sl_efi_locate_mle_offset (struct grub_slaunch_params *slparams,
                sizeof (struct linux_kernel_info));
 
   if (OFFSET_OF (mle_header_offset, &kernel_info) >= grub_le_to_cpu32 (kernel_info.size))
-    return grub_error (GRUB_ERR_BAD_OS, N_("not slaunch kernel: lack of mle_header_offset"));
+    return grub_error (GRUB_ERR_BAD_OS, N_("not an slaunch kernel: lack of mle_header_offset"));
 
   slparams->mle_header_offset = grub_le_to_cpu32 (kernel_info.mle_header_offset);
 

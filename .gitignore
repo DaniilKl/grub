@@ -32,7 +32,6 @@ Makefile
 Makefile.in
 ascii.bitmaps
 genkernsyms.sh
-gensymlist.sh
 grub-bin2h
 grub-emu
 grub-emu-lite
@@ -101,7 +100,6 @@ widthspec.bin
 /docs/*.info-[0-9]*
 /docs/stamp-1
 /docs/stamp-vti
-/docs/version-dev.texi
 /docs/version.texi
 /ehci_test
 /erofs_test

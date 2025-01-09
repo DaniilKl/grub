@@ -1903,6 +1903,7 @@ module = {
   x86 = loader/slaunch/skl.c;
   x86 = loader/slaunch/dlstub.c;
   x86 = loader/efi/dltrampoline.S;
+  i386_efi = loader/slaunch/x86_efi_linux.c;
   x86_64_efi = loader/slaunch/x86_efi_linux.c;
   enable = x86;
 };

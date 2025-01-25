@@ -228,8 +228,7 @@ void
 grub_setup_slr_table (struct grub_slaunch_params *slparams,
                       struct grub_slr_entry_hdr *platform_info)
 {
-  struct grub_slr_table *slrt =
-      (struct grub_slr_table *)(grub_addr_t)slparams->slr_table_base;
+  struct grub_slr_table *slrt = slparams->slr_table_mem;
 
   grub_slr_add_entry (slrt, &slr_dl_info_staging.hdr);
   grub_slr_add_entry (slrt, &slr_log_info_staging.hdr);

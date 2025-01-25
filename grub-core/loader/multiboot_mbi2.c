@@ -1267,8 +1267,11 @@ grub_multiboot2_perform_slaunch (grub_uint32_t mbi_target,
                 (unsigned) slparams->slr_table_size);
 
   dlinfo = grub_slr_next_entry_by_tag (slparams->slr_table_mem, NULL, GRUB_SLR_ENTRY_DL_INFO);
+  if (dlinfo == NULL)
+    return grub_error (GRUB_ERR_BUG, N_("Failed to find DL-info SLRT entry"));
+
   dl_entry ((grub_uint64_t)(grub_addr_t) &dlinfo->bl_context);
 
   /* If this returns, something failed miserably */
-  return GRUB_ERR_BAD_DEVICE;
+  return grub_error (GRUB_ERR_BAD_DEVICE, N_("Failed to start D-RTM"));
 }

@@ -588,6 +588,7 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
   /* Setup the TXT specific SLR information and policy entry */
   slr_intel_info_staging.hdr.tag = GRUB_SLR_ENTRY_INTEL_INFO;
   slr_intel_info_staging.hdr.size = sizeof(struct grub_slr_entry_intel_info);
+  slr_intel_info_staging.boot_params_base = slparams->boot_params_base;
   slr_intel_info_staging.txt_heap = (grub_addr_t)txt_heap;
   slr_intel_info_staging.saved_misc_enable_msr =
                grub_rdmsr (GRUB_MSR_X86_MISC_ENABLE);

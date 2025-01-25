@@ -59,6 +59,7 @@
 #include <grub/types.h>
 #include <grub/dl.h>
 #include <grub/acpi.h>
+#include <grub/safemath.h>
 #include <grub/slr_table.h>
 #include <grub/slaunch.h>
 #include <grub/i386/cpuid.h>
@@ -82,6 +83,19 @@ static grub_err_t
 enable_smx_mode (void)
 {
   grub_uint32_t caps;
+  grub_uint64_t feat_ctrl = grub_rdmsr (GRUB_MSR_X86_FEATURE_CONTROL);
+
+  if (!(feat_ctrl & GRUB_MSR_X86_FEATURE_CTRL_LOCK))
+    {
+      grub_dprintf ("slaunch", "Firmware didn't lock FEATURE_CONTROL MSR,"
+		    "locking it now\n");
+      /* Not setting SENTER_FUNCTIONS and SENTER_ENABLE because they were tested
+       * in grub_txt_verify_platform() */
+      feat_ctrl |= GRUB_MSR_X86_ENABLE_VMX_OUT_SMX |
+                   GRUB_MSR_X86_ENABLE_VMX_IN_SMX |
+                   GRUB_MSR_X86_FEATURE_CTRL_LOCK;
+      grub_wrmsr (GRUB_MSR_X86_FEATURE_CONTROL, feat_ctrl);
+    }
 
   /* Enable SMX mode. */
   grub_write_cr4 (grub_read_cr4 () | GRUB_CR4_X86_SMXE);
@@ -115,12 +129,12 @@ enable_smx_mode (void)
   return grub_errno;
 }
 
-static void
+static grub_err_t
 grub_txt_smx_parameters (struct grub_smx_parameters *params)
 {
   grub_uint32_t index = 0, eax, ebx, ecx, param_type;
 
-  grub_memset (params, 0, sizeof(struct grub_smx_supported_versions));
+  grub_memset (params, 0, sizeof(*params));
 
   params->max_acm_size = GRUB_SMX_DEFAULT_MAX_ACM_SIZE;
   params->acm_memory_types = GRUB_SMX_DEFAULT_ACM_MEMORY_TYPE;
@@ -137,11 +151,8 @@ grub_txt_smx_parameters (struct grub_smx_parameters *params)
           break; /* This means done. */
 
         case GRUB_SMX_PARAMETER_ACM_VERSIONS:
-          if (params->version_count == GRUB_SMX_PARAMETER_MAX_VERSIONS)
-            {
-	      grub_error (GRUB_ERR_OUT_OF_RANGE, N_("Too many ACM versions"));
-	      break;
-            }
+          if (params->version_count >= GRUB_SMX_PARAMETER_MAX_VERSIONS)
+            return grub_error (GRUB_ERR_OUT_OF_RANGE, N_("Too many ACM versions"));
           params->versions[params->version_count].mask = ebx;
           params->versions[params->version_count++].version = ecx;
           break;
@@ -163,8 +174,7 @@ grub_txt_smx_parameters (struct grub_smx_parameters *params)
         break;
 
       default:
-	grub_error (GRUB_ERR_BAD_ARGUMENT, N_("Unknown SMX parameter"));
-	param_type = GRUB_SMX_PARAMETER_NULL;
+        return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("Unknown SMX parameter"));
     }
 
     ++index;
@@ -178,6 +188,8 @@ grub_txt_smx_parameters (struct grub_smx_parameters *params)
       params->versions[0].version = GRUB_SMX_DEFAULT_VERSION;
       params->version_count++;
     }
+
+  return GRUB_ERR_NONE;
 }
 
 grub_err_t
@@ -187,6 +199,7 @@ grub_txt_prepare_cpu (void)
   grub_uint32_t i;
   grub_uint64_t mcg_cap, mcg_stat;
   unsigned long cr0;
+  grub_err_t err;
 
   cr0 = grub_read_control_register (GRUB_CR0);
 
@@ -211,12 +224,14 @@ grub_txt_prepare_cpu (void)
     return grub_error (GRUB_ERR_BAD_DEVICE,
 		       N_("machine check in progress during secure launch"));
 
-  grub_txt_smx_parameters (&params);
+  err = grub_txt_smx_parameters (&params);
+  if (err != GRUB_ERR_NONE)
+    return err;
 
   if (params.txt_feature_ext_flags & GRUB_SMX_PROCESSOR_BASE_SCRTM)
     grub_dprintf ("slaunch", "CPU supports processor-based S-CRTM\n");
 
-  if (params.txt_feature_ext_flags & GRUB_SMX_MACHINE_CHECK_HANLDING)
+  if (params.txt_feature_ext_flags & GRUB_SMX_MACHINE_CHECK_HANDLING)
     grub_dprintf ("slaunch", "CPU supports preserving machine check errors\n");
   else
     {
@@ -264,6 +279,12 @@ save_mtrrs (struct grub_slr_txt_mtrr_state *saved_bsp_mtrrs)
       saved_bsp_mtrrs->mtrr_pair[i].mtrr_physbase =
         grub_rdmsr (GRUB_MSR_X86_MTRR_PHYSBASE0 + i * 2);
     }
+  /* Zero unused array items. */
+  for ( ; i < GRUB_TXT_VARIABLE_MTRRS_LENGTH; ++i)
+    {
+      saved_bsp_mtrrs->mtrr_pair[i].mtrr_physmask = 0;
+      saved_bsp_mtrrs->mtrr_pair[i].mtrr_physbase = 0;
+    }
 }
 
 static void
@@ -283,6 +304,12 @@ set_all_mtrrs (int enable)
 
 #define SINIT_MTRR_MASK         0xFFFFFF  /* SINIT requires 36b mask */
 
+/*
+ * Note: bitfields in following structures are assumed to work on x86 and
+ * nothing else. All compilers supported by GRUB agree when it comes to layout
+ * of bits that is consistent with hardware implementation. It was decided to
+ * use bitfields for better readability instead of manual shifting and masking.
+ */
 union mtrr_physbase_t
 {
   grub_uint64_t raw;
@@ -362,7 +389,7 @@ set_mtrr_mem_type (const grub_uint8_t *base, grub_uint32_t size,
   grub_dprintf ("slaunch", "setting MTRRs for acmod: base=%p, size=%x, num_pages=%d\n",
            base, size, num_pages);
 
-  /* Each VAR MTRR base must be a multiple if that MTRR's Size */
+  /* Each VAR MTRR base must be a multiple of that MTRR's Size */
   base_v = (unsigned long)base;
   /* MTRR size in pages */
   mtrr_s = 1;
@@ -480,8 +507,6 @@ grub_set_mtrrs_for_acmod (struct grub_txt_acm_header *hdr)
   /* Set MTRRs for AC mod and rest of memory */
   err = set_mtrr_mem_type ((grub_uint8_t*)hdr, hdr->size*4,
                            GRUB_MTRR_MEMORY_TYPE_WB);
-  if ( err )
-    return err;
 
   /* Undo some of earlier changes and enable our new settings */
 
@@ -491,7 +516,7 @@ grub_set_mtrrs_for_acmod (struct grub_txt_acm_header *hdr)
   /* Enable MTRRs */
   set_all_mtrrs (1);
 
-  /* Restore CR0 (cacheing) */
+  /* Restore CR0 (caching) */
   grub_write_control_register (GRUB_CR0, cr0);
 
   /* Restore CR4 (global pages) */
@@ -500,7 +525,7 @@ grub_set_mtrrs_for_acmod (struct grub_txt_acm_header *hdr)
   /* Restore flags */
   grub_write_flags_register (eflags);
 
-  return GRUB_ERR_NONE;
+  return err;
 }
 
 void
@@ -533,12 +558,14 @@ static void
 set_txt_info_ptr (struct grub_slaunch_params *slparams,
                   struct grub_txt_os_mle_data *os_mle_data)
 {
+  struct grub_slr_table *slr_table = slparams->slr_table_mem;
   struct grub_slr_entry_hdr *txt_info;
 
-  txt_info = grub_slr_next_entry_by_tag ((struct grub_slr_table *)(grub_addr_t)slparams->slr_table_base,
+  txt_info = grub_slr_next_entry_by_tag (slr_table,
                                          NULL,
                                          GRUB_SLR_ENTRY_INTEL_INFO);
-  os_mle_data->txt_info = (grub_addr_t)txt_info;
+  os_mle_data->txt_info = (grub_addr_t) slparams->slr_table_base
+      + ((grub_addr_t) txt_info - (grub_addr_t) slparams->slr_table_mem);
 }
 
 static grub_err_t
@@ -547,6 +574,7 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
   grub_uint8_t *txt_heap;
   grub_uint32_t os_sinit_data_ver, sinit_caps;
   grub_uint64_t *size;
+  grub_uint64_t size_total;
   struct grub_txt_os_mle_data *os_mle_data;
   struct grub_txt_os_sinit_data *os_sinit_data;
   struct grub_txt_heap_end_element *heap_end_element;
@@ -555,12 +583,12 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
 #ifdef GRUB_MACHINE_EFI
   struct grub_acpi_rsdp_v20 *rsdp;
 #endif
-  struct grub_slr_txt_mtrr_state saved_mtrrs_state = {0};
   grub_err_t err;
 
   /* BIOS data already verified in grub_txt_verify_platform(). */
 
   txt_heap = grub_txt_get_heap ();
+  grub_dprintf ("slaunch", "TXT heap %p\n", txt_heap);
 
   /* Prepare SLR table staging area */
   grub_init_slrt_storage ();
@@ -568,6 +596,7 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
   /* OS/loader to MLE data. */
 
   os_mle_data = grub_txt_os_mle_data_start (txt_heap);
+  grub_dprintf ("slaunch", "OS MLE data: %p\n", os_mle_data);
   size = (grub_uint64_t *) ((grub_addr_t) os_mle_data - sizeof (grub_uint64_t));
   *size = sizeof (*os_mle_data) + sizeof (grub_uint64_t);
 
@@ -585,6 +614,14 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
       *size = ALIGN_UP (*size, 8);
     }
 
+  if (grub_add (grub_txt_bios_data_size (txt_heap), *size, &size_total) ||
+      size_total > grub_txt_get_heap_size ())
+    {
+      *size = 0;
+      return grub_error (GRUB_ERR_OUT_OF_MEMORY,
+                         N_("not enough TXT HEAP space for OsMleData"));
+    }
+
   grub_memset (os_mle_data, 0, sizeof (*os_mle_data));
 
   os_mle_data->version = GRUB_SL_OS_MLE_STRUCT_VERSION;
@@ -596,18 +633,17 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
 
   grub_setup_slrt_log_info (slparams);
 
-  /* Save the BSPs MTRR state so post launch can restore itt */
-  save_mtrrs (&saved_mtrrs_state);
-
-  /* Setup the TXT specific SLR information and policy entry */
+  /* Setup the TXT specific SLR information */
   slr_intel_info_staging.hdr.tag = GRUB_SLR_ENTRY_INTEL_INFO;
   slr_intel_info_staging.hdr.size = sizeof(struct grub_slr_entry_intel_info);
   slr_intel_info_staging.boot_params_base = slparams->boot_params_base;
   slr_intel_info_staging.txt_heap = (grub_addr_t)txt_heap;
   slr_intel_info_staging.saved_misc_enable_msr =
                grub_rdmsr (GRUB_MSR_X86_MISC_ENABLE);
-  grub_memcpy (&(slr_intel_info_staging.saved_bsp_mtrrs), &saved_mtrrs_state,
-               sizeof(struct grub_slr_txt_mtrr_state));
+
+  /* Save the BSPs MTRR state so post launch can restore it. */
+  grub_dprintf ("slaunch", "Saving MTRRs to OS MLE data\n");
+  save_mtrrs (&slr_intel_info_staging.saved_bsp_mtrrs);
 
   slr_intel_policy_staging.pcr = 18;
   slr_intel_policy_staging.entity_type = GRUB_SLR_ET_TXT_OS2MLE;
@@ -622,6 +658,7 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
 
   /* OS/loader to SINIT data. */
 
+  grub_dprintf ("slaunch", "Get supported OS SINIT data version\n");
   os_sinit_data_ver = grub_txt_supported_os_sinit_data_ver (sinit);
 
   if (os_sinit_data_ver < OS_SINIT_DATA_MIN_VER)
@@ -630,6 +667,7 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
 		       " expected >= %d"), os_sinit_data_ver, OS_SINIT_DATA_MIN_VER);
 
   os_sinit_data = grub_txt_os_sinit_data_start (txt_heap);
+  grub_dprintf ("slaunch", "OS SINIT data: %p\n", os_sinit_data);
   size = (grub_uint64_t *) ((grub_addr_t) os_sinit_data - sizeof (grub_uint64_t));
 
   *size = sizeof(grub_uint64_t) + sizeof (struct grub_txt_os_sinit_data) +
@@ -642,15 +680,23 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
   else
     return grub_error (GRUB_ERR_BAD_DEVICE, N_("unsupported TPM version"));
 
+  if (grub_add (size_total, *size, &size_total) ||
+      size_total > grub_txt_get_heap_size ())
+    {
+      *size = 0;
+      return grub_error (GRUB_ERR_OUT_OF_MEMORY,
+                         N_("not enough TXT HEAP space for OsSinitData"));
+    }
+
   grub_memset (os_sinit_data, 0, *size);
 
 #ifdef GRUB_MACHINE_EFI
   rsdp = grub_acpi_get_rsdpv2 ();
 
   if (rsdp == NULL)
-    return grub_printf ("WARNING: ACPI RSDP 2.0 missing\n");
+    return grub_error (GRUB_ERR_BAD_DEVICE, N_("ACPI RSDP 2.0 missing\n"));
 
-  os_sinit_data->efi_rsdt_ptr = (grub_uint64_t)(grub_addr_t) rsdp;
+  os_sinit_data->efi_rsdp_ptr = (grub_uint64_t)(grub_addr_t) rsdp;
 #endif
 
   os_sinit_data->mle_ptab = slparams->mle_ptab_target;
@@ -681,12 +727,23 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
 
   grub_dprintf ("slaunch", "SINIT capabilities 0x%08x\n", sinit_caps);
 
-  /* CBnT bits 5:4 must be 11b, since D/A mapping is the only one supported. */
-  os_sinit_data->capabilities = GRUB_TXT_CAPS_TPM_12_NO_LEGACY_PCR_USAGE |
-				GRUB_TXT_CAPS_TPM_12_AUTH_PCR_USAGE;
+  /*
+   * In the latest TXT Software Development Guide as of now (April 2023,
+   * Revision 017.4) bits 4 and 5 (used to be "no legacy PCR usage" and
+   * "auth PCR usage" respectively) of capabilities field bit are reserved.
+   * Bit 4 is ignored, but it is returned as 0 by SINIT[CAPABILITIES],
+   * while bit 5 is forced to 1 for compatibility reasons. This is related
+   * to support for TPM 1.2 devices, which always had this bit set.
+   *
+   * There are TPM 2.0 platforms that will have both bits set. TXT
+   * specification doesn't specify when this has changed, so we can't
+   * reliably test for those.
+   */
+  os_sinit_data->capabilities = GRUB_TXT_CAPS_TPM_12_AUTH_PCR_USAGE;
 
   if (grub_get_tpm_ver () == GRUB_TPM_20)
     {
+      /* CBnT bits 5:4 must be 11b, since D/A mapping is the only one supported. */
       if ((sinit_caps & os_sinit_data->capabilities) != os_sinit_data->capabilities)
         return grub_error (GRUB_ERR_BAD_ARGUMENT,
                            N_("Details/authorities PCR usage is not supported"));
@@ -704,7 +761,12 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
         }
     }
 
-  /* Choose monitor RLP wakeup mechanism first. */
+  /*
+   * APs (application processors) can't be brought up by usual INIT-SIPI-SIPI
+   * sequence after Measured Launch, otherwise the MLE integrity is lost.
+   * Choose monitor RLP (responding logical processor, fancy name for AP) wakeup
+   * mechanism first, if that isn't supported fall back to GETSEC[WAKEUP].
+   */
   if (sinit_caps & GRUB_TXT_CAPS_MONITOR_SUPPORT)
     os_sinit_data->capabilities |= GRUB_TXT_CAPS_MONITOR_SUPPORT;
   else if (sinit_caps & GRUB_TXT_CAPS_GETSEC_WAKE_SUPPORT)
@@ -761,10 +823,14 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
       heap_end_element->size = sizeof (*heap_end_element);
     }
 
-  /*
-   * TODO: TXT spec: Note: BiosDataSize + OsMleDataSize + OsSinitDataSize + SinitMleDataSize
-   * must be less than or equal to TXT.HEAP.SIZE, TXT spec, p. 102.
-   */
+  /* SinitMleDataSize isn't known at this point, it is crafted by SINIT ACM.
+   * We can only test if size field fits and hope that ACM checks the rest. */
+  if (grub_add (size_total, sizeof (grub_uint64_t), &size_total) ||
+      size_total > grub_txt_get_heap_size ())
+    return grub_error (GRUB_ERR_OUT_OF_MEMORY,
+                       N_("not enough TXT HEAP space for SinitMleDataSize"));
+
+  grub_dprintf ("slaunch", "TXT HEAP init done\n");
 
   return GRUB_ERR_NONE;
 }
@@ -783,11 +849,15 @@ grub_txt_get_mle_ptab_size (grub_uint32_t mle_size)
   /*
    * #PT + 1 PT + #PD + 1 PD + 1 PDT
    *
-   * Why do we need 2 extra PTEs and PDEs? Yes, because MLE image may not
+   * Why do we need 2 extra PTEs and PDEs? Because MLE image may not
    * start and end at PTE (page) and PDE (2 MiB) boundary...
    */
-  return ((((mle_size / GRUB_PAGE_SIZE) + 2) / 512) + 1 +
-	  (((mle_size / (512 * GRUB_PAGE_SIZE)) + 2) / 512) + 1 + 1) * GRUB_PAGE_SIZE;
+  return ((((mle_size / GRUB_PAGE_SIZE) + 2) / 512) + /* Number of PTs */
+          1 +                                         /* PT */
+          (((mle_size / (512 * GRUB_PAGE_SIZE)) + 2) / 512) + /* Number of PDs */
+          1 +                                         /* PD */
+          1)                                          /* PDT */
+         * GRUB_PAGE_SIZE;
 }
 
 /* Page directory and table entries only need Present set */
@@ -800,10 +870,10 @@ grub_txt_get_mle_ptab_size (grub_uint32_t mle_size)
  * pages that can cover up to 36M .
  * can only contain 4k pages
  *
- * TODO: TXT Spec p.32; List section name and number with PT MLE requirments here.
+ * TODO: TXT Spec p.32; List section name and number with PT MLE requirements here.
  *
  * TODO: This function is not able to cover MLEs larger than 1 GiB. Fix it!!!
- * After fixing inrease GRUB_TXT_MLE_MAX_SIZE too.
+ * After fixing increase GRUB_TXT_MLE_MAX_SIZE too.
  */
 void
 grub_txt_setup_mle_ptab (struct grub_slaunch_params *slparams)
@@ -828,6 +898,7 @@ grub_txt_setup_mle_ptab (struct grub_slaunch_params *slparams)
 
   do
     {
+      /* mle_start may be unaligned, handled by mask in MAKE_PT_MLE_ENTRY */
       *pte = MAKE_PT_MLE_ENTRY(slparams->mle_start + mle_off);
 
       pte++;
@@ -841,7 +912,8 @@ grub_txt_setup_mle_ptab (struct grub_slaunch_params *slparams)
           pde++;
           *pde = MAKE_PT_MLE_ENTRY(pte);
         }
-    } while (mle_off < slparams->mle_size);
+    /* Add one page in case mle_start isn't aligned */
+    } while (mle_off - GRUB_PAGE_SIZE + 1 < slparams->mle_size);
 }
 
 grub_err_t
@@ -988,10 +1060,13 @@ grub_txt_boot_prepare (struct grub_slaunch_params *slparams)
   if (sinit_base == NULL)
     return grub_errno;
 
+  grub_dprintf ("slaunch", "Init TXT heap\n");
   err = init_txt_heap (slparams, sinit_base);
 
   if (err != GRUB_ERR_NONE)
     return err;
+
+  grub_dprintf ("slaunch", "TXT heap successfully prepared\n");
 
   /* Update the MLE header if it's part of the memory image . */
   mle_header = (struct grub_txt_mle_header *)(grub_addr_t) (slparams->mle_start + slparams->mle_header_offset);
@@ -1014,6 +1089,12 @@ grub_txt_boot_prepare (struct grub_slaunch_params *slparams)
   set_txt_info_ptr (slparams, os_mle_data);
 
   grub_tpm_relinquish_locality (0);
+  grub_dprintf ("slaunch", "Relinquished TPM locality 0\n");
+
+  grub_dprintf ("slaunch", "CPU prepared for secure launch\n");
+
+  if (!(grub_rdmsr (GRUB_MSR_X86_APICBASE) & GRUB_MSR_X86_APICBASE_BSP))
+    return grub_error (GRUB_ERR_BAD_DEVICE, N_("secure launch must run on BSP"));
 
   return GRUB_ERR_NONE;
 }

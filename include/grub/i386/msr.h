@@ -37,7 +37,9 @@
 #define GRUB_MSR_X86_ICR_DELIVER_EXCL_SELF (3<<18)
 
 #define GRUB_MSR_X86_FEATURE_CONTROL    0x0000003a
+#define GRUB_MSR_X86_FEATURE_CTRL_LOCK  (1<<0)     /* Lock this (feature control) MSR */
 #define GRUB_MSR_X86_ENABLE_VMX_IN_SMX  (1<<1)     /* Enable VMX inside SMX */
+#define GRUB_MSR_X86_ENABLE_VMX_OUT_SMX	(1<<2)     /* Enable VMX outside SMX */
 #define GRUB_MSR_X86_SENTER_FUNCTIONS   (0x7f<<8)  /* Bitmap of SENTER function enables */
 #define GRUB_MSR_X86_SENTER_ENABLE      (1<<15)    /* SENTER global enable */
 

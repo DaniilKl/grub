@@ -1244,9 +1244,20 @@ grub_multiboot2_perform_slaunch (grub_uint32_t mbi_target,
 
   if (slparams->platform_type == SLP_INTEL_TXT)
     {
+      slparams->slr_table_base = GRUB_SLAUNCH_STORE_IN_OS2MLE;
+      slparams->slr_table_size = GRUB_PAGE_SIZE;
+
+      slparams->slr_table_mem = grub_zalloc (slparams->slr_table_size);
+      if (slparams->slr_table_mem == NULL)
+        return grub_error (grub_errno, N_("Failed to allocate SLRT"));
+
       err = grub_txt_boot_prepare (slparams);
       if (err != GRUB_ERR_NONE)
         return grub_error (err, "TXT boot preparation failed");
+
+      grub_memcpy ((void *)(grub_addr_t) slparams->slr_table_base,
+                   slparams->slr_table_mem,
+                   slparams->slr_table_size);
     }
   else if (slparams->platform_type == SLP_AMD_SKINIT)
     {

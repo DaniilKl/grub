@@ -189,6 +189,7 @@ struct grub_slr_txt_mtrr_state
 struct grub_slr_entry_intel_info
 {
   struct grub_slr_entry_hdr hdr;
+  grub_uint64_t boot_params_base;
   grub_uint64_t txt_heap;
   grub_uint64_t saved_misc_enable_msr;
   struct grub_slr_txt_mtrr_state saved_bsp_mtrrs;

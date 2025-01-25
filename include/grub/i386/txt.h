@@ -376,8 +376,9 @@ struct grub_txt_os_sinit_data
   grub_uint64_t lcp_po_base;
   grub_uint64_t lcp_po_size;
   grub_uint32_t capabilities;
-  /* Version = 5 */
-  grub_uint64_t    efi_rsdt_ptr;
+  /* Versions >= 5 */
+  /* Warning: version 5 has pointer to RSDT here, not RSDP */
+  grub_uint64_t    efi_rsdp_ptr;
   /* Versions >= 6 */
   /* Ext Data Elements */
   grub_uint8_t ext_data_elts[];
@@ -451,6 +452,12 @@ struct grub_txt_heap_event_log_ptr_elt2_1
 
 /* TXT register and heap access */
 
+static inline grub_uint32_t
+grub_txt_reg_pub_readd (grub_uint32_t reg)
+{
+  return grub_read32 (GRUB_TXT_CFG_REGS_PUB + reg);
+}
+
 static inline grub_uint64_t
 grub_txt_reg_pub_readq (grub_uint32_t reg)
 {
@@ -461,6 +468,12 @@ static inline grub_uint8_t *
 grub_txt_get_heap (void)
 {
   return (grub_uint8_t *)(grub_addr_t) grub_txt_reg_pub_readq (GRUB_TXT_HEAP_BASE);
+}
+
+static inline grub_uint32_t
+grub_txt_get_heap_size (void)
+{
+  return grub_txt_reg_pub_readd (GRUB_TXT_HEAP_SIZE);
 }
 
 static inline grub_uint64_t
@@ -611,8 +624,8 @@ grub_txt_getsec_sexit (void)
 #define GRUB_SMX_GET_SENTER_CONTROLS(v)	((v & 0x7f00) >> 8)
 
 #define GRUB_SMX_PROCESSOR_BASE_SCRTM	0x00000020
-#define GRUB_SMX_MACHINE_CHECK_HANLDING	0x00000040
-#define GRUB_SMX_GET_TXT_EXT_FEATURES(v) (v & (GRUB_SMX_PROCESSOR_BASE_SCRTM|GRUB_SMX_MACHINE_CHECK_HANLDING))
+#define GRUB_SMX_MACHINE_CHECK_HANDLING	0x00000040
+#define GRUB_SMX_GET_TXT_EXT_FEATURES(v) (v & (GRUB_SMX_PROCESSOR_BASE_SCRTM|GRUB_SMX_MACHINE_CHECK_HANDLING))
 
 #define GRUB_SMX_DEFAULT_VERSION	0x0
 #define GRUB_SMX_DEFAULT_VERSION_MASK	0xffffffff

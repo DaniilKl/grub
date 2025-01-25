@@ -625,7 +625,6 @@ init_txt_heap (struct grub_slaunch_params *slparams, struct grub_txt_acm_header 
   grub_memset (os_mle_data, 0, sizeof (*os_mle_data));
 
   os_mle_data->version = GRUB_SL_OS_MLE_STRUCT_VERSION;
-  os_mle_data->boot_params_addr = slparams->boot_params_base;
   os_mle_data->slrt = slparams->slr_table_base;
 
   os_mle_data->ap_wake_block = slparams->ap_wake_block;

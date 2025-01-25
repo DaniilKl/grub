@@ -354,7 +354,6 @@ struct grub_txt_os_mle_data
 {
   grub_uint32_t version;
   grub_uint32_t reserved;
-  grub_uint64_t boot_params_addr;
   grub_uint64_t slrt;
   grub_uint64_t txt_info;
   grub_uint32_t ap_wake_block;

@@ -134,6 +134,63 @@ sl_efi_txt_setup_slmem (struct grub_slaunch_params *slparams,
   return slmem;
 }
 
+static void *
+allocate_aligned_efi_pages (grub_efi_physical_address_t max_address,
+                            grub_efi_uintn_t pages,
+                            grub_efi_memory_type_t memtype,
+                            grub_efi_uintn_t alignment)
+{
+  void *mem;
+  grub_efi_uintn_t total_pages;
+  grub_efi_uintn_t prefix;
+  grub_efi_uintn_t suffix;
+  grub_efi_status_t status;
+  grub_efi_boot_services_t *b;
+  grub_efi_physical_address_t address;
+
+  b = grub_efi_system_table->boot_services;
+
+  if (pages % alignment == 0)
+  {
+    total_pages = pages;
+  }
+  else
+  {
+    /* Overallocate and then free unused */
+    total_pages = pages + alignment;
+  }
+
+  address = max_address;
+  status = b->allocate_pages (GRUB_EFI_ALLOCATE_MAX_ADDRESS, memtype,
+                              total_pages, &address);
+  if (status != GRUB_EFI_SUCCESS)
+    return NULL;
+
+  if (address == 0)
+    {
+      address = max_address;
+      status = b->allocate_pages (GRUB_EFI_ALLOCATE_MAX_ADDRESS, memtype,
+                                  total_pages, &address);
+      b->free_pages (0, total_pages);
+      if (status != GRUB_EFI_SUCCESS)
+        return NULL;
+    }
+
+  mem = alignment == 0
+      ? (void*)address
+      : (void *)ALIGN_UP (address, alignment * GRUB_EFI_PAGE_SIZE);
+
+  prefix = GRUB_EFI_BYTES_TO_PAGES ((grub_addr_t)mem - address);
+  if (prefix != 0)
+    b->free_pages (address, prefix);
+
+  suffix = total_pages - prefix - pages;
+  if (suffix != 0)
+    b->free_pages ((grub_addr_t)mem + pages * GRUB_EFI_PAGE_SIZE, suffix);
+
+  return mem;
+}
+
 grub_err_t
 grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
                        grub_efi_loaded_image_t *loaded_image, bool is_linux)
@@ -141,7 +198,7 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
   struct linux_kernel_params *lh = (struct linux_kernel_params *)kernel_addr;
   grub_addr_t image_base = (grub_addr_t)loaded_image->image_base;
   grub_efi_uint64_t image_size = loaded_image->image_size;
-  grub_efi_physical_address_t requested;
+  grub_efi_physical_address_t max_pmap_addr;
   grub_ssize_t start = 0;
   grub_err_t err;
   void *addr;
@@ -170,16 +227,16 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
       start = (lh->setup_sects + 1) * 512;
     }
 
-  /* Allocate page tables for TXT just in front of the kernel image */
+  /* Allocate page tables for TXT somewhere below the kernel image */
   slparams->mle_ptab_size = grub_txt_get_mle_ptab_size (image_size);
   slparams->mle_ptab_size = ALIGN_UP (slparams->mle_ptab_size, GRUB_TXT_PMR_ALIGN);
-  requested = ALIGN_DOWN ((image_base - slparams->mle_ptab_size),
-                            GRUB_TXT_PMR_ALIGN);
 
-  addr = grub_efi_allocate_pages_real (requested,
-                                       GRUB_EFI_BYTES_TO_PAGES(slparams->mle_ptab_size),
-                                       GRUB_EFI_ALLOCATE_ADDRESS,
-                                       GRUB_EFI_LOADER_DATA);
+  max_pmap_addr = ALIGN_DOWN (image_base - slparams->mle_ptab_size,
+                              GRUB_TXT_PMR_ALIGN);
+  addr = allocate_aligned_efi_pages (max_pmap_addr,
+                                     GRUB_EFI_BYTES_TO_PAGES(slparams->mle_ptab_size),
+                                     GRUB_EFI_LOADER_DATA,
+                                     GRUB_EFI_BYTES_TO_PAGES(GRUB_TXT_PMR_ALIGN));
   if (!addr)
     {
       grub_error (GRUB_ERR_OUT_OF_MEMORY, N_("out of memory"));

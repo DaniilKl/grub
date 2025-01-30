@@ -239,7 +239,8 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
                                      GRUB_EFI_BYTES_TO_PAGES(GRUB_TXT_PMR_ALIGN));
   if (!addr)
     {
-      grub_error (GRUB_ERR_OUT_OF_MEMORY, N_("out of memory"));
+      grub_dprintf ("slaunch", "failed to allocate pmap below 0x%llx\n",
+                    (unsigned long long)max_pmap_addr);
       return GRUB_ERR_OUT_OF_MEMORY;
     }
 
@@ -273,16 +274,25 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
 
   err = sl_efi_locate_mle_offset (slparams, kernel_addr, start, is_linux);
   if (err != GRUB_ERR_NONE)
-    goto fail;
+    {
+      grub_dprintf ("slaunch", N_("failed to determine MLE offset"));
+      goto fail;
+    }
 
   /* Final stage for secure launch, setup TXT and install the SLR table */
   err = grub_txt_boot_prepare (slparams);
   if (err != GRUB_ERR_NONE)
-    goto fail;
+    {
+      grub_dprintf ("slaunch", N_("failed to prepare TXT"));
+      goto fail;
+    }
 
   err = sl_efi_install_slr_table (slparams);
   if (err != GRUB_ERR_NONE)
-    goto fail;
+    {
+      grub_dprintf ("slaunch", N_("failed to register SLRT with UEFI"));
+      goto fail;
+    }
 
   return GRUB_ERR_NONE;
 

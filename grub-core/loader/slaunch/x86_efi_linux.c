@@ -59,9 +59,9 @@ sl_efi_install_slr_table (struct grub_slaunch_params *slparams)
 }
 
 static grub_err_t
-sl_efi_locate_mle_offset (struct grub_slaunch_params *slparams,
-                          void *kernel_addr, grub_ssize_t kernel_start,
-                          bool is_linux)
+sl_efi_load_mle_data (struct grub_slaunch_params *slparams,
+                      void *kernel_addr, grub_ssize_t kernel_start,
+                      bool is_linux)
 {
   struct linux_kernel_params *lh = (struct linux_kernel_params *)kernel_addr;
   struct linux_kernel_info kernel_info;
@@ -98,6 +98,16 @@ sl_efi_locate_mle_offset (struct grub_slaunch_params *slparams,
 
   slparams->mle_header_offset = mle_hdr_offset;
   slparams->mle_entry = mle_hdr->entry_point;
+
+  if (!is_linux) {
+    /*
+     * The previous value of the field is covering the whole EFI image which
+     * can include a lot of useless padding.  Limit the size used for measuring
+     * MLE to that reported by the header.  Don't change the behaviour for
+     * Linux.
+     */
+    slparams->mle_size = mle_hdr->mle_end - mle_hdr->mle_start;
+  }
 
   return GRUB_ERR_NONE;
 }
@@ -272,10 +282,10 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
       goto fail;
     }
 
-  err = sl_efi_locate_mle_offset (slparams, kernel_addr, start, is_linux);
+  err = sl_efi_load_mle_data (slparams, kernel_addr, start, is_linux);
   if (err != GRUB_ERR_NONE)
     {
-      grub_dprintf ("slaunch", N_("failed to determine MLE offset"));
+      grub_dprintf ("slaunch", N_("failed to load MLE data"));
       goto fail;
     }
 
@@ -351,7 +361,7 @@ grub_sl_efi_skinit_setup (struct grub_slaunch_params *slparams, void *kernel_add
   slparams->tpm_evt_log_base = (grub_addr_t)logmem;
   slparams->tpm_evt_log_size = GRUB_EFI_SLAUNCH_TPM_EVT_LOG_SIZE;
 
-  err = sl_efi_locate_mle_offset (slparams, kernel_addr, start, is_linux);
+  err = sl_efi_load_mle_data (slparams, kernel_addr, start, is_linux);
   if (err != GRUB_ERR_NONE)
     goto fail;
 

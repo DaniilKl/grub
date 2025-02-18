@@ -203,8 +203,8 @@ grub_sl_txt_setup_linux (struct grub_slaunch_params *slparams, struct grub_reloc
 
   slparams->tpm_evt_log_base = get_physical_target_address (ch);
   slparams->tpm_evt_log_size = GRUB_SLAUNCH_TPM_EVT_LOG_SIZE;
-
-  grub_memset (get_virtual_current_address (ch), 0, slparams->tpm_evt_log_size);
+  grub_txt_init_tpm_event_log (get_virtual_current_address (ch),
+                               slparams->tpm_evt_log_size);
 
   grub_dprintf ("linux", "tpm_evt_log_base = %lx, tpm_evt_log_size = %x\n",
                 (unsigned long) slparams->tpm_evt_log_base,
@@ -256,8 +256,9 @@ grub_sl_skinit_setup_linux (struct grub_slaunch_params *slparams, struct grub_re
 
   slparams->tpm_evt_log_base = get_physical_target_address (ch);
   slparams->tpm_evt_log_size = GRUB_SLAUNCH_TPM_EVT_LOG_SIZE;
-
-  grub_memset (get_virtual_current_address (ch), 0, slparams->tpm_evt_log_size);
+  /* It's OK to call this for AMD SKINIT because SKL erases the log before use. */
+  grub_txt_init_tpm_event_log (get_virtual_current_address (ch),
+                               slparams->tpm_evt_log_size);
 
   grub_dprintf ("linux", "tpm_evt_log_base = %lx, tpm_evt_log_size = %x\n",
                 (unsigned long) slparams->tpm_evt_log_base,

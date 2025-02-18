@@ -222,7 +222,7 @@ grub_setup_slrt_log_info (struct grub_slaunch_params *slparams)
   slr_log_info_staging.size = slparams->tpm_evt_log_size;
   slr_log_info_staging.format =
         (grub_get_tpm_ver () == GRUB_TPM_20) ?
-        GRUB_SLR_DRTM_TPM20_LOG : GRUB_SLR_DRTM_TPM20_LOG;
+        GRUB_SLR_DRTM_TPM20_LOG : GRUB_SLR_DRTM_TPM12_LOG;
 }
 
 void

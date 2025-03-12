@@ -37,6 +37,7 @@
 #include <grub/i18n.h>
 #include <grub/net.h>
 #include <grub/slaunch.h>
+#include <grub/time.h>
 #if defined (__i386__) || defined (__x86_64__)
 #include <grub/macho.h>
 #include <grub/i386/macho.h>
@@ -251,6 +252,57 @@ make_file_path (grub_efi_device_path_t *dp, const char *filename)
 }
 
 static grub_err_t
+clear_unused_memory_below (grub_uint64_t limit)
+{
+  grub_efi_memory_descriptor_t *memory_map, *desc;
+  grub_efi_uintn_t memory_map_size, desc_size;
+  grub_efi_boot_services_t *b;
+  grub_efi_uint64_t total_cleared = 0;
+  int ret;
+
+  b = grub_efi_system_table->boot_services;
+
+  memory_map_size = grub_efi_find_mmap_size ();
+
+  memory_map = grub_malloc (memory_map_size);
+  if (!memory_map)
+    return GRUB_ERR_OUT_OF_MEMORY;
+
+  ret = grub_efi_get_memory_map (&memory_map_size, memory_map, NULL,
+                                 &desc_size, NULL);
+  if (ret < 1)
+    {
+      grub_free (memory_map);
+      return GRUB_ERR_BUG;
+    }
+
+  for (desc = memory_map;
+       (grub_addr_t)desc < ((grub_addr_t)memory_map + memory_map_size);
+       desc = (void *)((grub_uint8_t *)desc + desc_size))
+    {
+      grub_efi_uint64_t size = desc->num_pages << 12;
+
+      if (desc->type != GRUB_EFI_CONVENTIONAL_MEMORY ||
+          desc->physical_start >= limit)
+        continue;
+
+      if (desc->physical_start + size > limit)
+        size = limit - desc->physical_start;
+
+      grub_dprintf ("chain", "Clearing %lu bytes at 0x%lx...\n", size,
+                    desc->physical_start);
+      b->set_mem ((void *)desc->physical_start, size, 0x00);
+      total_cleared += size;
+    }
+
+  grub_free (memory_map);
+
+  grub_dprintf ("chain", "Cleared %llu bytes in total.\n",
+                (unsigned long long)total_cleared);
+  return GRUB_ERR_NONE;
+}
+
+static grub_err_t
 grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
 		      int argc, char *argv[])
 {
@@ -342,6 +394,33 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
 		    filename);
 
       goto fail;
+    }
+
+  if (grub_slaunch_platform_type () != SLP_NONE)
+    {
+      grub_uint64_t before_time, after_time;
+      grub_err_t err;
+
+      /*
+       * Firmware doesn't necessarily zero area allocated for an EFI image
+       * before filling some of its subranges with data from a file.  This can
+       * leave areas not backed by a file holding arbitrary values.
+       *
+       * So clear all currently unused memory below 4 GiB to avoid DRTM
+       * measuring random data.
+       */
+
+      before_time = grub_get_time_ms ();
+      err = clear_unused_memory_below (1ULL << 32);
+      after_time = grub_get_time_ms ();
+      if (err != GRUB_ERR_NONE)
+        {
+          grub_dprintf ("chain", "Failed to clear unused memory < 4 GiB\n");
+          goto fail;
+        }
+
+      grub_dprintf ("chain", "Took %llu ms to clear the memory\n",
+                    (unsigned long long)(after_time - before_time));
     }
 
 #if defined (__i386__) || defined (__x86_64__)

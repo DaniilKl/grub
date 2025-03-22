@@ -93,7 +93,6 @@ grub_vbe_enable_mtrr (grub_uint8_t *base, grub_size_t size)
   grub_uint32_t features;
   grub_uint32_t mtrrcap;
   int var_mtrrs;
-  grub_uint32_t max_extended_cpuid;
   grub_uint32_t maxphyaddr;
   grub_uint64_t fb_base, fb_size;
   grub_uint64_t size_bits, fb_mask;
@@ -142,15 +141,7 @@ grub_vbe_enable_mtrr (grub_uint8_t *base, grub_size_t size)
     return;
   var_mtrrs = (mtrrcap & 0xFF);
 
-  grub_cpuid (0x80000000, eax, ebx, ecx, edx);
-  max_extended_cpuid = eax;
-  if (max_extended_cpuid >= 0x80000008)
-    {
-      grub_cpuid (0x80000008, eax, ebx, ecx, edx);
-      maxphyaddr = (eax & 0xFF);
-    }
-  else
-    maxphyaddr = 36;
+  maxphyaddr = grub_get_max_phy_addr_bits ();
   bits_lo = 0xFFFFF000; /* assume maxphyaddr >= 36 */
   bits_hi = (1 << (maxphyaddr - 32)) - 1;
   bits = bits_lo | ((grub_uint64_t) bits_hi << 32);

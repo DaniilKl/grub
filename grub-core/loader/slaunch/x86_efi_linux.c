@@ -148,15 +148,16 @@ sl_efi_load_mle_data (struct grub_slaunch_params *slparams,
   slparams->mle_header_offset = mle_hdr_offset;
   slparams->mle_entry = mle_hdr->entry_point;
 
-  if (!is_linux) {
-    /*
-     * The previous value of the field is covering the whole EFI image which
-     * can include a lot of useless padding.  Limit the size used for measuring
-     * MLE to that reported by the header.  Don't change the behaviour for
-     * Linux.
-     */
-    slparams->mle_size = mle_hdr->mle_end - mle_hdr->mle_start;
-  }
+  if (!is_linux)
+    {
+      /*
+       * The current value of the field covers the whole EFI image which can
+       * include a lot of useless padding.  Limit the size used for measuring
+       * MLE to that reported by the header.  Don't change the behaviour for
+       * Linux in case it causes trouble (needs testing).
+       */
+      slparams->mle_size = mle_hdr->mle_end - mle_hdr->mle_start;
+    }
 
   return GRUB_ERR_NONE;
 }

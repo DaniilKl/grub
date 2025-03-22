@@ -96,4 +96,18 @@ grub_cpu_is_cpuid_supported (void)
                 : "0" (num))
 #endif
 
+static inline grub_uint8_t grub_get_max_phy_addr_bits (void)
+{
+  grub_uint32_t eax, ebx, ecx, edx;
+  grub_uint32_t max_extended_cpuid;
+
+  grub_cpuid (0x80000000, eax, ebx, ecx, edx);
+  max_extended_cpuid = eax;
+  if (max_extended_cpuid < 0x80000008)
+    return 36;
+
+  grub_cpuid (0x80000008, eax, ebx, ecx, edx);
+  return eax & 0xFF;
+}
+
 #endif

@@ -249,6 +249,12 @@ grub_update_slrt_policy (struct grub_slaunch_params *slparams)
   grub_uint64_t hi_val;
   int i, next = 0;
 
+  if (boot_params == NULL)
+    {
+      /* Nothing to update if Linux boot params aren't supplied */
+      return;
+    }
+
   policy = grub_slr_next_entry_by_tag ((struct grub_slr_table *)(grub_addr_t)slparams->slr_table_base,
                                        NULL,
                                        GRUB_SLR_ENTRY_ENTRY_POLICY);

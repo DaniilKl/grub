@@ -58,15 +58,53 @@ sl_efi_install_slr_table (struct grub_slaunch_params *slparams)
   return GRUB_ERR_NONE;
 }
 
+/* Traverses sections of a loaded EFI image to map an offset within a file to
+ * an offset within the image. Returns appropriately casted -1 on error. */
+static grub_efi_uint64_t
+foffset_to_voffset(grub_efi_loaded_image_t *image, grub_uint32_t foffset)
+{
+  struct grub_msdos_image_header *header;
+  struct grub_pe_image_header *pe_image_header;
+  struct grub_pe32_coff_header *coff_header;
+  struct grub_pe32_section_table *sections;
+  struct grub_pe32_section_table *section;
+  grub_uint16_t i;
+  grub_uint32_t loaded_section;
+
+  header = image->image_base;
+  pe_image_header = (struct grub_pe_image_header *)
+      ((char *) header + header->pe_image_header_offset);
+  coff_header = &pe_image_header->coff_header;
+  sections = (struct grub_pe32_section_table *)
+      ((char *) coff_header + sizeof (*coff_header)
+       + coff_header->optional_header_size);
+
+  loaded_section = GRUB_PE32_SCN_CNT_CODE | GRUB_PE32_SCN_CNT_INITIALIZED_DATA;
+  for (i = 0, section = sections; i < coff_header->num_sections; i++, section++)
+    {
+      grub_uint32_t fstart = section->raw_data_offset;
+      grub_uint32_t fend = fstart + section->raw_data_size;
+
+      if ((section->characteristics & loaded_section) != 0 &&
+          foffset >= fstart && foffset < fend)
+        {
+          return section->virtual_address + (foffset - fstart);
+        }
+    }
+
+  return ~(grub_efi_uint64_t)0;
+}
+
 static grub_err_t
 sl_efi_load_mle_data (struct grub_slaunch_params *slparams,
                       void *kernel_addr, grub_ssize_t kernel_start,
+                      grub_efi_loaded_image_t *loaded_image,
                       bool is_linux)
 {
   struct linux_kernel_params *lh = (struct linux_kernel_params *)kernel_addr;
   struct linux_kernel_info kernel_info;
   struct grub_txt_mle_header *mle_hdr;
-  grub_uint32_t mle_hdr_offset;
+  grub_uint64_t mle_hdr_offset;
 
   if (is_linux)
     {
@@ -101,6 +139,10 @@ sl_efi_load_mle_data (struct grub_slaunch_params *slparams,
         {
           return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("not an slaunch kernel: no MLE header found"));
         }
+
+      mle_hdr_offset = foffset_to_voffset (loaded_image, mle_hdr_offset);
+      if (mle_hdr_offset >= (1ULL << 32))
+        return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("failed to map MLE header"));
     }
 
   slparams->mle_header_offset = mle_hdr_offset;
@@ -291,7 +333,7 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
       goto fail;
     }
 
-  err = sl_efi_load_mle_data (slparams, kernel_addr, start, is_linux);
+  err = sl_efi_load_mle_data (slparams, kernel_addr, start, loaded_image, is_linux);
   if (err != GRUB_ERR_NONE)
     {
       grub_dprintf ("slaunch", N_("failed to load MLE data"));
@@ -371,7 +413,7 @@ grub_sl_efi_skinit_setup (struct grub_slaunch_params *slparams, void *kernel_add
   /* It's OK to call this for AMD SKINIT because SKL erases the log before use. */
   grub_txt_init_tpm_event_log (logmem, slparams->tpm_evt_log_size);
 
-  err = sl_efi_load_mle_data (slparams, kernel_addr, start, is_linux);
+  err = sl_efi_load_mle_data (slparams, kernel_addr, start, loaded_image, is_linux);
   if (err != GRUB_ERR_NONE)
     goto fail;
 

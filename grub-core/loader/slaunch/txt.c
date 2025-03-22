@@ -351,12 +351,11 @@ fls (int mask)
 }
 
 /*
- * set the memory type for specified range (base to base+size)
- * to mem_type and everything else to UC
+ * Set the memory type for ACM's memory range to mem_type and everything else
+ * to UC.
  */
 static grub_err_t
-set_mtrr_mem_type (const grub_uint8_t *base, grub_uint32_t size,
-                   grub_uint32_t mem_type)
+set_mtrr_mem_type (struct grub_txt_acm_header *sinit, grub_uint32_t mem_type)
 {
   grub_uint64_t mtrr_def_type;
   grub_uint64_t mtrr_cap;
@@ -365,6 +364,9 @@ set_mtrr_mem_type (const grub_uint8_t *base, grub_uint32_t size,
   grub_uint32_t vcnt, pages_in_range;
   unsigned long ndx, base_v;
   int i = 0, j, num_pages, mtrr_s;
+
+  const grub_uint8_t *base = (const grub_uint8_t *)sinit;
+  grub_uint32_t size = sinit->size*4;
 
   /* Disable all fixed MTRRs, set default type to UC */
   mtrr_def_type = grub_rdmsr (GRUB_MSR_X86_MTRR_DEF_TYPE);
@@ -390,7 +392,7 @@ set_mtrr_mem_type (const grub_uint8_t *base, grub_uint32_t size,
            base, size, num_pages);
 
   /* Each VAR MTRR base must be a multiple of that MTRR's Size */
-  base_v = (unsigned long)base;
+  base_v = (grub_addr_t)base;
   /* MTRR size in pages */
   mtrr_s = 1;
 
@@ -410,7 +412,7 @@ set_mtrr_mem_type (const grub_uint8_t *base, grub_uint32_t size,
   while ( num_pages >= mtrr_s )
     {
       mtrr_physbase.raw = grub_rdmsr (GRUB_MSR_X86_MTRR_PHYSBASE0 + ndx*2);
-      mtrr_physbase.base = ((unsigned long)base >> GRUB_PAGE_SHIFT) &
+      mtrr_physbase.base = ((grub_addr_t)base >> GRUB_PAGE_SHIFT) &
 	                     SINIT_MTRR_MASK;
       mtrr_physbase.type = mem_type;
       grub_wrmsr (GRUB_MSR_X86_MTRR_PHYSBASE0 + ndx*2, mtrr_physbase.raw);
@@ -432,7 +434,7 @@ set_mtrr_mem_type (const grub_uint8_t *base, grub_uint32_t size,
     {
       /* Set the base of the current MTRR */
       mtrr_physbase.raw = grub_rdmsr (GRUB_MSR_X86_MTRR_PHYSBASE0 + ndx*2);
-      mtrr_physbase.base = ((unsigned long)base >> GRUB_PAGE_SHIFT) &
+      mtrr_physbase.base = ((grub_addr_t)base >> GRUB_PAGE_SHIFT) &
                             SINIT_MTRR_MASK;
       mtrr_physbase.type = mem_type;
       grub_wrmsr (GRUB_MSR_X86_MTRR_PHYSBASE0 + ndx*2, mtrr_physbase.raw);
@@ -505,8 +507,7 @@ grub_set_mtrrs_for_acmod (struct grub_txt_acm_header *hdr)
   set_all_mtrrs (0);
 
   /* Set MTRRs for AC mod and rest of memory */
-  err = set_mtrr_mem_type ((grub_uint8_t*)hdr, hdr->size*4,
-                           GRUB_MTRR_MEMORY_TYPE_WB);
+  err = set_mtrr_mem_type (hdr, GRUB_MTRR_MEMORY_TYPE_WB);
 
   /* Undo some of earlier changes and enable our new settings */
 

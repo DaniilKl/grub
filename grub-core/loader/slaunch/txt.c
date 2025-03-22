@@ -302,8 +302,6 @@ set_all_mtrrs (int enable)
   grub_wrmsr (GRUB_MSR_X86_MTRR_DEF_TYPE, mtrr_def_type);
 }
 
-#define SINIT_MTRR_MASK         0xFFFFFF  /* SINIT requires 36b mask */
-
 /*
  * Note: bitfields in following structures are assumed to work on x86 and
  * nothing else. All compilers supported by GRUB agree when it comes to layout
@@ -362,6 +360,8 @@ set_mtrr_mem_type (struct grub_txt_acm_header *sinit, grub_uint32_t mem_type)
   union mtrr_physbase_t mtrr_physbase;
   union mtrr_physmask_t mtrr_physmask;
   grub_uint32_t vcnt, pages_in_range;
+  grub_uint32_t max_phy_addr_bits;
+  grub_uint64_t mtrr_shifted_mask;
   unsigned long ndx, base_v;
   int i = 0, j, num_pages, mtrr_s;
 
@@ -409,16 +409,22 @@ set_mtrr_mem_type (struct grub_txt_acm_header *sinit, grub_uint32_t mem_type)
 
   ndx = 0;
 
+  if (grub_txt_get_sinit_capabilities (sinit) & GRUB_TXT_CAPS_MAXPHYSADDR_SUPPORT)
+    max_phy_addr_bits = grub_get_max_phy_addr_bits ();
+  else
+    max_phy_addr_bits = 36;
+  mtrr_shifted_mask = (1ULL << (max_phy_addr_bits - GRUB_PAGE_SHIFT)) - 1;
+
   while ( num_pages >= mtrr_s )
     {
       mtrr_physbase.raw = grub_rdmsr (GRUB_MSR_X86_MTRR_PHYSBASE0 + ndx*2);
       mtrr_physbase.base = ((grub_addr_t)base >> GRUB_PAGE_SHIFT) &
-	                     SINIT_MTRR_MASK;
+	                     mtrr_shifted_mask;
       mtrr_physbase.type = mem_type;
       grub_wrmsr (GRUB_MSR_X86_MTRR_PHYSBASE0 + ndx*2, mtrr_physbase.raw);
 
       mtrr_physmask.raw = grub_rdmsr (GRUB_MSR_X86_MTRR_PHYSMASK0 + ndx*2);
-      mtrr_physmask.mask = ~(mtrr_s - 1) & SINIT_MTRR_MASK;
+      mtrr_physmask.mask = ~(mtrr_s - 1) & mtrr_shifted_mask;
       mtrr_physmask.v = 1;
       grub_wrmsr (GRUB_MSR_X86_MTRR_PHYSMASK0 + ndx*2, mtrr_physmask.raw);
 
@@ -435,7 +441,7 @@ set_mtrr_mem_type (struct grub_txt_acm_header *sinit, grub_uint32_t mem_type)
       /* Set the base of the current MTRR */
       mtrr_physbase.raw = grub_rdmsr (GRUB_MSR_X86_MTRR_PHYSBASE0 + ndx*2);
       mtrr_physbase.base = ((grub_addr_t)base >> GRUB_PAGE_SHIFT) &
-                            SINIT_MTRR_MASK;
+                            mtrr_shifted_mask;
       mtrr_physbase.type = mem_type;
       grub_wrmsr (GRUB_MSR_X86_MTRR_PHYSBASE0 + ndx*2, mtrr_physbase.raw);
 
@@ -447,7 +453,7 @@ set_mtrr_mem_type (struct grub_txt_acm_header *sinit, grub_uint32_t mem_type)
       pages_in_range = 1 << (fls (num_pages) - 1);
 
       mtrr_physmask.raw = grub_rdmsr (GRUB_MSR_X86_MTRR_PHYSMASK0 + ndx*2);
-      mtrr_physmask.mask = ~(pages_in_range - 1) & SINIT_MTRR_MASK;
+      mtrr_physmask.mask = ~(pages_in_range - 1) & mtrr_shifted_mask;
       mtrr_physmask.v = 1;
       grub_wrmsr (GRUB_MSR_X86_MTRR_PHYSMASK0 + ndx*2, mtrr_physmask.raw);
 

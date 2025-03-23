@@ -114,7 +114,10 @@ sl_efi_load_mle_data (struct grub_slaunch_params *slparams,
                    sizeof (struct linux_kernel_info));
 
       if (OFFSET_OF (mle_header_offset, &kernel_info) >= grub_le_to_cpu32 (kernel_info.size))
-        return grub_error (GRUB_ERR_BAD_OS, N_("not an slaunch kernel: lack of mle_header_offset"));
+        {
+          grub_dprintf ("slaunch", "not an slaunch kernel: lack of mle_header_offset\n");
+          return GRUB_ERR_BAD_OS;
+        }
 
       mle_hdr_offset = grub_le_to_cpu32 (kernel_info.mle_header_offset);
       mle_hdr = (struct grub_txt_mle_header *)((grub_addr_t)kernel_addr + slparams->mle_header_offset);
@@ -137,12 +140,16 @@ sl_efi_load_mle_data (struct grub_slaunch_params *slparams,
 
       if (mle_hdr_offset >= 0x1000)
         {
-          return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("not an slaunch kernel: no MLE header found"));
+          grub_dprintf ("slaunch", "not an slaunch kernel: no MLE header found\n");
+          return GRUB_ERR_BAD_ARGUMENT;
         }
 
       mle_hdr_offset = foffset_to_voffset (loaded_image, mle_hdr_offset);
       if (mle_hdr_offset >= (1ULL << 32))
-        return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("failed to map MLE header"));
+        {
+          grub_dprintf ("slaunch", "failed to map MLE header\n");
+          return GRUB_ERR_BAD_ARGUMENT;
+        }
     }
 
   slparams->mle_header_offset = mle_hdr_offset;
@@ -337,7 +344,7 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
   err = sl_efi_load_mle_data (slparams, kernel_addr, start, loaded_image, is_linux);
   if (err != GRUB_ERR_NONE)
     {
-      grub_dprintf ("slaunch", N_("failed to load MLE data"));
+      grub_dprintf ("slaunch", N_("failed to load MLE data\n"));
       goto fail;
     }
 
@@ -345,14 +352,14 @@ grub_sl_efi_txt_setup (struct grub_slaunch_params *slparams, void *kernel_addr,
   err = grub_txt_boot_prepare (slparams);
   if (err != GRUB_ERR_NONE)
     {
-      grub_dprintf ("slaunch", N_("failed to prepare TXT"));
+      grub_dprintf ("slaunch", N_("failed to prepare TXT\n"));
       goto fail;
     }
 
   err = sl_efi_install_slr_table (slparams);
   if (err != GRUB_ERR_NONE)
     {
-      grub_dprintf ("slaunch", N_("failed to register SLRT with UEFI"));
+      grub_dprintf ("slaunch", N_("failed to register SLRT with UEFI\n"));
       goto fail;
     }
 
@@ -416,7 +423,10 @@ grub_sl_efi_skinit_setup (struct grub_slaunch_params *slparams, void *kernel_add
 
   err = sl_efi_load_mle_data (slparams, kernel_addr, start, loaded_image, is_linux);
   if (err != GRUB_ERR_NONE)
-    goto fail;
+    {
+      grub_dprintf ("slaunch", N_("failed to load MLE data\n"));
+      goto fail;
+    }
 
   /*
    * AMD SKL final setup may relocate the SKL module. It is also what sets the SLRT and DCE

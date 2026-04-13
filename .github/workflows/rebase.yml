@@ -1,0 +1,82 @@
+name: Rebase on top of QubesOS main and build RPMs
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 6'
+
+jobs:
+  prep-rebase:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout qubes-grub2
+        uses: actions/checkout@v6
+        with:
+          repository: QubesOS/qubes-grub2
+          path: qubes-grub2
+
+      - name: Checkout downstream grub repository
+        uses: actions/checkout@v6
+        with:
+          repository: trenchboot/grub
+          token: ${{ secrets.TOKEN }}
+          path: grub
+
+      - name: Read upstream version from qubes-grub2
+        id: version
+        run: echo "version=$(tr -d '[:space:]' < qubes-grub2/version)" >> "$GITHUB_OUTPUT"
+
+      - name: Add upstream remote and fetch version tag
+        working-directory: grub
+        env:
+          UPSTREAM_TAG: grub-${{ steps.version.outputs.version }}
+        run: |
+          git remote add upstream https://git.savannah.gnu.org/git/grub.git
+          git fetch upstream "refs/tags/${UPSTREAM_TAG}:refs/tags/${UPSTREAM_TAG}"
+
+      - name: Apply qubes-grub2 patches on top of upstream tag
+        working-directory: grub
+        env:
+          UPSTREAM_TAG: grub-${{ steps.version.outputs.version }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout -b qubes-grub2-with-patches-rebase-prep "$UPSTREAM_TAG"
+          git am ../qubes-grub2/*.patch
+
+      - name: Push qubes-grub2-with-patches branch to downstream
+        working-directory: grub
+        run: |
+          git push origin qubes-grub2-with-patches-rebase-prep || \
+          echo "Cannot prepare for automatic rebase!" >&2
+  try-rebase:
+    needs: prep-rebase
+    uses: TrenchBoot/.github/.github/workflows/rebase.yml@add-rebase-script
+    secrets:
+      first-remote-token: ${{secrets.TOKEN}}
+    permissions:
+      # For creation/deletion/pushing to branches and creating PRs
+      contents: write
+    with:
+      downstream-repo: 'https://github.com/trenchboot/grub.git'
+      downstream-branch: 'tb-dev-test'
+      upstream-repo: 'https://github.com/trenchboot/grub.git'
+      upstream-branch: 'qubes-grub2-with-patches-rebase-prep'
+      commit-user-name: 'github-actions[bot]'
+      commit-user-email: 'github-actions[bot]@users.noreply.github.com'
+      cicd-trigger-resume: '7. Rerun the workflow https://github.com/trenchboot/grub/actions/runs/${{ github.run_id }} to resume automated rebase.'
+  cleanup-on-rebase-failure:
+    needs: try-rebase
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Delete qubes-grub2-with-patches branch from downstream
+        env:
+          TOKEN: ${{ secrets.TOKEN }}
+        run: |
+          git push "https://${TOKEN}@github.com/trenchboot/grub.git" \
+            --delete qubes-grub2-with-patches-rebase-prep

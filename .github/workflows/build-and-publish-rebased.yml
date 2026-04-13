@@ -1,6 +1,7 @@
 name: Build the last successful automatic rebase of tb-dev branch
 
 on:
+  workflow_dispatch:
   create:
     branches:
       - 'tb-dev-test-rebased'

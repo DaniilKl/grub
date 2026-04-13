@@ -1,4 +1,4 @@
-name: Build the last successful automatic rebase of main branch
+name: Build the last successful automatic rebase of tb-dev branch
 
 on:
   create:
@@ -14,7 +14,7 @@ jobs:
       qubes-pkg-version: '2.13'
   trigger-gitea-cicd:
     needs: qubes-dom0-package
-    uses: TrenchBoot/.github/.github/workflows/trigger-woodpecker-pipeline.yml@add-rebase-workflow
+    uses: TrenchBoot/.github/.github/workflows/trigger-woodpecker-pipeline.yml@add-rebase-script
     secrets:
       woodpecker-token: ${{ secrets.WOODPECKER_TOKEN }}
     with:

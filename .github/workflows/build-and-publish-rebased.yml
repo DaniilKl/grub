@@ -10,8 +10,6 @@ jobs:
     uses: TrenchBoot/.github/.github/workflows/qubes-dom0-packagev2.yml@master
     with:
       qubes-component: 'grub2'
-      qubes-pkg-src-dir: '.'
-      qubes-pkg-version: '2.13'
   trigger-gitea-cicd:
     needs: qubes-dom0-package
     uses: TrenchBoot/.github/.github/workflows/trigger-woodpecker-pipeline.yml@add-rebase-script

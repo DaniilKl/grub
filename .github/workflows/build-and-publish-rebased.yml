@@ -14,7 +14,7 @@ jobs:
       qubes-pkg-version: '2.13'
   trigger-gitea-cicd:
     needs: qubes-dom0-package
-    uses: TrenchBoot/.github/.github/workflows/trigger-woodpecker-pipeline.yml@master
+    uses: TrenchBoot/.github/.github/workflows/trigger-woodpecker-pipeline.yml@add-rebase-workflow
     secrets:
       woodpecker-token: ${{ secrets.WOODPECKER_TOKEN }}
     with:

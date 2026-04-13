@@ -73,7 +73,14 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Checkout downstream grub repository
+        uses: actions/checkout@v6
+        with:
+          repository: DaniilKl/grub
+          token: ${{ secrets.TOKEN }}
+          path: grub
       - name: Delete qubes-grub2-with-patches branch from downstream
+        working-directory: grub
         env:
           TOKEN: ${{ secrets.TOKEN }}
         run: |

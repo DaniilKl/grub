@@ -2,12 +2,15 @@ name: Build the last successful automatic rebase of tb-dev branch
 
 on:
   workflow_dispatch:
-  create:
-    branches:
-      - 'tb-dev-test-rebased'
+  workflow_run:                                                                                      
+    workflows:                                                                                       
+      - 'Rebase on top of QubesOS main and build RPMs'                                               
+    types:                                                                                           
+      - completed 
 
 jobs:
   qubes-dom0-package:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     uses: TrenchBoot/.github/.github/workflows/qubes-dom0-packagev2.yml@master
     with:
       qubes-component: 'grub2'

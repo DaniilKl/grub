@@ -20,7 +20,7 @@ jobs:
       - name: Checkout downstream grub repository
         uses: actions/checkout@v6
         with:
-          repository: trenchboot/grub
+          repository: DaniilKl/grub
           token: ${{ secrets.TOKEN }}
           path: grub
 
@@ -60,13 +60,13 @@ jobs:
       # For creation/deletion/pushing to branches and creating PRs
       contents: write
     with:
-      downstream-repo: 'https://github.com/trenchboot/grub.git'
+      downstream-repo: 'https://github.com/DaniilKl/grub.git'
       downstream-branch: 'tb-dev-test'
-      upstream-repo: 'https://github.com/trenchboot/grub.git'
+      upstream-repo: 'https://github.com/DaniilKl/grub.git'
       upstream-branch: 'qubes-grub2-with-patches-rebase-prep'
       commit-user-name: 'github-actions[bot]'
       commit-user-email: 'github-actions[bot]@users.noreply.github.com'
-      cicd-trigger-resume: '7. Rerun the workflow https://github.com/trenchboot/grub/actions/runs/${{ github.run_id }} to resume automated rebase.'
+      cicd-trigger-resume: '7. Rerun the workflow https://github.com/DaniilKl/grub/actions/runs/${{ github.run_id }} to resume automated rebase.'
   cleanup-on-rebase-failure:
     needs: try-rebase
     if: failure()
@@ -78,5 +78,5 @@ jobs:
         env:
           TOKEN: ${{ secrets.TOKEN }}
         run: |
-          git push "https://${TOKEN}@github.com/trenchboot/grub.git" \
+          git push "https://${TOKEN}@github.com/DaniilKl/grub.git" \
             --delete qubes-grub2-with-patches-rebase-prep

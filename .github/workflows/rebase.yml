@@ -69,7 +69,6 @@ jobs:
       cicd-trigger-resume: '7. Rerun the workflow https://github.com/DaniilKl/grub/actions/runs/${{ github.run_id }} to resume automated rebase.'
   cleanup-on-rebase-failure:
     needs: try-rebase
-    if: failure()
     runs-on: ubuntu-latest
     permissions:
       contents: read

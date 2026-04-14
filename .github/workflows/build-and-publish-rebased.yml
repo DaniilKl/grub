@@ -10,10 +10,12 @@ on:
 
 jobs:
   qubes-dom0-package:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: github.event.workflow_run.conclusion == 'success'
     uses: TrenchBoot/.github/.github/workflows/qubes-dom0-packagev2.yml@master
     with:
       qubes-component: 'grub2'
+      qubes-component-branch: 'tb-dev-test-rebased'
+      qubes-pkg-src-dir: '.'
   trigger-gitea-cicd:
     needs: qubes-dom0-package
     uses: TrenchBoot/.github/.github/workflows/trigger-woodpecker-pipeline.yml@add-rebase-script
@@ -29,3 +31,4 @@ jobs:
         --input GITHUB_SHA=${{ github.sha }}
         --input GITHUB_RUN_ID=${{ github.run_id }}
         --input QUBES_COMPONENT=grub2
+        --input WORKFLOW=sign-and-publish-test-rpms

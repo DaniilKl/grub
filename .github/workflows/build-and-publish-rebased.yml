@@ -16,6 +16,7 @@ jobs:
       qubes-component: 'grub2'
       qubes-component-branch: 'tb-dev-test-rebased'
       qubes-pkg-src-dir: '.'
+      qubes-pkg-version: '2.06'
   trigger-gitea-cicd:
     needs: qubes-dom0-package
     uses: TrenchBoot/.github/.github/workflows/trigger-woodpecker-pipeline.yml@add-rebase-script

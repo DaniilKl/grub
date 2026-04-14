@@ -11,7 +11,7 @@ on:
 jobs:
   qubes-dom0-package:
     if: github.event.workflow_run.conclusion == 'success'
-    uses: TrenchBoot/.github/.github/workflows/qubes-dom0-packagev2.yml@master
+    uses: TrenchBoot/.github/.github/workflows/qubes-dom0-packagev2.yml@add-rebase-script
     with:
       qubes-component: 'grub2'
       qubes-component-branch: 'tb-dev-test-rebased'

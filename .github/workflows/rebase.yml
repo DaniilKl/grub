@@ -35,7 +35,8 @@ jobs:
         run: |
           git remote add upstream https://git.savannah.gnu.org/git/grub.git
           git fetch upstream "refs/tags/${UPSTREAM_TAG}:refs/tags/${UPSTREAM_TAG}"
-
+      - name: Remove unused Source1 sig declaration from grub2 spec
+        run: sed -i '/^Source1:[[:space:]]*.*\.sig/d' qubes-grub2/grub2.spec.in
       - name: Apply qubes-grub2 patches on top of upstream tag
         working-directory: grub
         env:
